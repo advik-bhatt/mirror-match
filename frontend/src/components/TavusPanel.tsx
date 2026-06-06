@@ -24,7 +24,8 @@ export default function TavusPanel({ onEmotionUpdate, onTranscript }: Props) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [callActive, setCallActive] = useState(false)
-  const recognitionRef = useRef<SpeechRecognition | null>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recognitionRef = useRef<any>(null)
 
   const classifyAndEmit = useCallback(async (text: string, speaker: 'customer' | 'agent') => {
     try {
@@ -53,8 +54,8 @@ export default function TavusPanel({ onEmotionUpdate, onTranscript }: Props) {
       return
     }
 
-    const SR = (window as Window & { SpeechRecognition?: typeof SpeechRecognition; webkitSpeechRecognition?: typeof SpeechRecognition }).SpeechRecognition
-      || (window as Window & { webkitSpeechRecognition?: typeof SpeechRecognition }).webkitSpeechRecognition
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition
     if (!SR) return
 
     const recognition = new SR()
@@ -62,7 +63,8 @@ export default function TavusPanel({ onEmotionUpdate, onTranscript }: Props) {
     recognition.interimResults = false
     recognition.lang = 'en-US'
 
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    recognition.onresult = (event: any) => {
       const result = event.results[event.results.length - 1]
       if (result.isFinal) {
         const text = result[0].transcript.trim()
