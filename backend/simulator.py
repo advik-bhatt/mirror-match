@@ -128,7 +128,9 @@ async def run_simulation(
         await publish_event(session_id, {"type": "error", "message": f"Unknown scenario: {scenario_name}"})
         return
 
-    elevenlabs_api_key: str | None = os.getenv("ELEVENLABS_API_KEY")
+    elevenlabs_api_key: str | None = (
+        os.getenv("ELEVENLABS_API_KEY") if os.getenv("ENABLE_TTS", "false").lower() == "true" else None
+    )
     caller_voice_id, agent_voice_id = _get_voice_ids()
 
     await update_session_status(session_id, "running")
