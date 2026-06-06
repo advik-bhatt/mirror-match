@@ -282,30 +282,28 @@ export default function DashboardPage() {
       // 2. Open SSE stream
       const es = new EventSource(`${BACKEND_URL}/api/sessions/${sessionId}/stream`)
       eventSourceRef.current = es
+      let completed = false
 
-      es.addEventListener('turn', (e: MessageEvent) => {
+      es.onmessage = (e: MessageEvent) => {
         try {
-          const turn = JSON.parse(e.data as string) as Turn
-          appendTurn(turn)
+          const event = JSON.parse(e.data as string) as Record<string, unknown>
+          if (event.type === 'turn') {
+            appendTurn(event as unknown as Turn)
+          } else if (event.type === 'complete') {
+            completed = true
+            setReport(event.report as Report)
+            es.close()
+            eventSourceRef.current = null
+            setIsRunning(false)
+            setSessionState((prev) => ({ ...prev, status: 'complete' }))
+          }
         } catch {
           // ignore malformed events
         }
-      })
+      }
 
-      es.addEventListener('complete', (e: MessageEvent) => {
-        try {
-          const completedReport = JSON.parse(e.data as string) as Report
-          setReport(completedReport)
-        } catch {
-          // ignore malformed events
-        }
-        es.close()
-        eventSourceRef.current = null
-        setIsRunning(false)
-        setSessionState((prev) => ({ ...prev, status: 'complete' }))
-      })
-
-      es.addEventListener('error', () => {
+      es.onerror = () => {
+        if (completed) return
         es.close()
         eventSourceRef.current = null
         setIsRunning(false)
@@ -314,7 +312,7 @@ export default function DashboardPage() {
           status: 'error',
           error: 'Stream connection error',
         }))
-      })
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error'
       setIsRunning(false)
