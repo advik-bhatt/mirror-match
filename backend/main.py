@@ -20,6 +20,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
+from .emotion import classify_emotion
 from .redis_store import create_session, get_session
 from .scenarios import SCENARIOS
 from .simulator import run_simulation
@@ -283,3 +284,29 @@ async def create_tavus_conversation():
         logger.warning("Tavus API error: %s", exc)
 
     return {"conversation_url": None, "mock": True, "error": "Tavus API unavailable"}
+
+
+class ClassifyRequest(BaseModel):
+    text: str
+
+
+@app.post("/api/classify")
+async def classify_text(body: ClassifyRequest):
+    """
+    Classify the emotion of a text utterance.
+
+    Used by the LiveCallPanel to score caller messages from the ElevenLabs
+    Conversational AI session in real time.
+    """
+    scores = await classify_emotion(body.text)
+    anger = scores.get("anger", 0.0)
+    if anger >= 0.7:
+        emotion_level = 3
+    elif anger >= 0.4:
+        emotion_level = 2
+    elif anger >= 0.2:
+        emotion_level = 1
+    else:
+        emotion_level = 0
+    dominant = max(scores, key=scores.get)
+    return {"scores": scores, "emotion_level": emotion_level, "dominant_emotion": dominant}
