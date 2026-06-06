@@ -28,7 +28,7 @@ interface Turn {
 interface Report {
   overall_score: number
   grade: string
-  pass: boolean
+  passed: boolean
   de_escalation: number
   empathy: number
   resolution: number
@@ -207,6 +207,44 @@ function Spinner() {
         d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
       />
     </svg>
+  )
+}
+
+function AudioButton({ src, label }: { src: string; label: string }) {
+  const audioRef = useRef<HTMLAudioElement>(null)
+  const [playing, setPlaying] = useState(false)
+  const [unavailable, setUnavailable] = useState(false)
+
+  const toggle = () => {
+    if (!audioRef.current || unavailable) return
+    if (playing) {
+      audioRef.current.pause()
+      setPlaying(false)
+    } else {
+      audioRef.current.play().catch(() => setUnavailable(true))
+      setPlaying(true)
+    }
+  }
+
+  if (unavailable) return null
+
+  return (
+    <>
+      <audio
+        ref={audioRef}
+        src={src}
+        onEnded={() => setPlaying(false)}
+        onError={() => setUnavailable(true)}
+        preload="none"
+      />
+      <button
+        onClick={toggle}
+        title={label}
+        className="text-xs text-gray-500 hover:text-orange-400 transition-colors px-1"
+      >
+        {playing ? '⏸' : '▶'}
+      </button>
+    </>
   )
 }
 
@@ -624,7 +662,15 @@ export default function DashboardPage() {
                     <div className="flex gap-2.5 items-start">
                       <span className="text-lg leading-none mt-0.5 flex-shrink-0">🧑</span>
                       <div className="flex-1 bg-gray-800/70 rounded-lg rounded-tl-none px-3 py-2.5 border border-gray-700">
-                        <p className="text-xs text-gray-400 mb-1 font-medium">Caller</p>
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="text-xs text-gray-400 font-medium">Caller</p>
+                          {sessionState.sessionId && (
+                            <AudioButton
+                              src={`${BACKEND_URL}/api/audio/${sessionState.sessionId}/${turn.turn_number - 1}/caller`}
+                              label="Play caller audio"
+                            />
+                          )}
+                        </div>
                         <p className="text-sm text-gray-200 leading-relaxed">{turn.caller_message}</p>
                       </div>
                     </div>
@@ -632,7 +678,15 @@ export default function DashboardPage() {
                     {/* Agent response */}
                     <div className="flex gap-2.5 items-start justify-end">
                       <div className="flex-1 bg-gray-900 rounded-lg rounded-tr-none px-3 py-2.5 border border-gray-800">
-                        <p className="text-xs text-gray-400 mb-1 font-medium">Agent</p>
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="text-xs text-gray-400 font-medium">Agent</p>
+                          {sessionState.sessionId && (
+                            <AudioButton
+                              src={`${BACKEND_URL}/api/audio/${sessionState.sessionId}/${turn.turn_number - 1}/agent`}
+                              label="Play agent audio"
+                            />
+                          )}
+                        </div>
                         <p className="text-sm text-gray-300 leading-relaxed">{turn.agent_response}</p>
                       </div>
                       <span className="text-lg leading-none mt-0.5 flex-shrink-0">🤖</span>
@@ -706,21 +760,21 @@ export default function DashboardPage() {
                     </span>
                     <span
                       className={`text-xs font-bold px-3 py-1 rounded-full ${
-                        report.pass
+                        report.passed
                           ? 'bg-green-950 text-green-400 border border-green-800'
                           : 'bg-red-950 text-red-400 border border-red-800'
                       }`}
                     >
-                      {report.pass ? '✓ PASS' : '✗ FAIL'}
+                      {report.passed ? '✓ PASS' : '✗ FAIL'}
                     </span>
                   </div>
                 </div>
 
                 {/* Metrics */}
                 <div className="space-y-3">
-                  <MetricBar label="De-escalation" value={report.de_escalation} />
-                  <MetricBar label="Empathy" value={report.empathy} />
-                  <MetricBar label="Resolution" value={report.resolution} />
+                  <MetricBar label="De-escalation" value={report.de_escalation * 100} />
+                  <MetricBar label="Empathy" value={report.empathy * 100} />
+                  <MetricBar label="Resolution" value={report.resolution * 100} />
                 </div>
 
                 {/* Insights */}
