@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 
 const EmotionArcChart = dynamic(() => import('../components/EmotionChart'), { ssr: false })
+const LiveCallPanel = dynamic(() => import('../components/LiveCallPanel'), { ssr: false })
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -308,6 +309,8 @@ export default function DashboardPage() {
   const [centerTab, setCenterTab] = useState<'eval' | 'avatar'>('eval')
   const [tavusUrl, setTavusUrl] = useState<string | null>(null)
   const [tavusLoading, setTavusLoading] = useState(false)
+  const [liveEmotionScores, setLiveEmotionScores] = useState<EmotionScores | null>(null)
+  const [liveEmotionLevel, setLiveEmotionLevel] = useState<number>(0)
 
   const transcriptRef = useRef<HTMLDivElement>(null)
   const eventSourceRef = useRef<EventSource | null>(null)
@@ -331,6 +334,11 @@ export default function DashboardPage() {
       const res = await fetch(`${BACKEND_URL}/api/usage`)
       if (res.ok) setUsage(await res.json())
     } catch { /* ignore */ }
+  }, [])
+
+  const handleLiveEmotionUpdate = useCallback((scores: Record<string, number>, level: number) => {
+    setLiveEmotionScores(scores as EmotionScores)
+    setLiveEmotionLevel(level)
   }, [])
 
   const startTavusAvatar = useCallback(async () => {
@@ -438,12 +446,17 @@ export default function DashboardPage() {
     }
   }, [isRunning, selectedScenario, selectedMode, appendTurn, fetchUsage])
 
-  // Derived state
+  // Derived state — live call takes precedence in avatar tab
   const latestTurn = turns[turns.length - 1]
-  const maxAnger = turns.reduce(
-    (max, t) => Math.max(max, t.emotion_scores.anger),
-    0
-  )
+  const activeEmotionScores = centerTab === 'avatar' && liveEmotionScores
+    ? liveEmotionScores
+    : latestTurn?.emotion_scores ?? null
+  const activeEmotionLevel = centerTab === 'avatar' && liveEmotionScores
+    ? liveEmotionLevel
+    : latestTurn?.emotion_level ?? 0
+  const maxAnger = centerTab === 'avatar' && liveEmotionScores
+    ? liveEmotionScores.anger
+    : turns.reduce((max, t) => Math.max(max, t.emotion_scores.anger), 0)
   const callerFace = getCallerFace(maxAnger)
 
   // ── Render ──────────────────────────────────────────────────────────────────
@@ -658,17 +671,14 @@ export default function DashboardPage() {
               📊 Evaluation
             </button>
             <button
-              onClick={() => {
-                setCenterTab('avatar')
-                if (!tavusUrl && !tavusLoading) startTavusAvatar()
-              }}
+              onClick={() => setCenterTab('avatar')}
               className={`px-3 py-1.5 text-xs font-medium rounded-t-md transition-all border-b-2 ${
                 centerTab === 'avatar'
                   ? 'text-white border-orange-500'
                   : 'text-gray-500 border-transparent hover:text-gray-300'
               }`}
             >
-              🎭 Live Avatar
+              🎙 Live Practice
             </button>
           </div>
 
@@ -788,46 +798,9 @@ export default function DashboardPage() {
             </>
           )}
 
-          {/* Live Avatar tab */}
+          {/* Live Practice tab */}
           {centerTab === 'avatar' && (
-            <div className="flex-1 flex flex-col items-center justify-center p-6 min-h-0">
-              {tavusLoading ? (
-                <div className="flex flex-col items-center gap-3 text-gray-500">
-                  <Spinner />
-                  <p className="text-sm">Starting avatar session…</p>
-                </div>
-              ) : tavusUrl ? (
-                <iframe
-                  src={tavusUrl}
-                  className="w-full h-full rounded-xl border border-gray-700"
-                  allow="camera; microphone; autoplay"
-                  title="Tavus Live Avatar"
-                />
-              ) : (
-                <div className="text-center space-y-4 max-w-md">
-                  <span className="text-6xl block">🎭</span>
-                  <div>
-                    <p className="text-gray-200 font-semibold text-lg">Tavus Live Avatar</p>
-                    <p className="text-gray-500 text-sm mt-1 leading-relaxed">
-                      A Tavus CVI (Conversational Video Interface) avatar reacts to the caller&apos;s
-                      emotion in real time — modulating tone, expression, and pacing based on the
-                      live emotion signal.
-                    </p>
-                  </div>
-                  <div className="bg-gray-900 rounded-lg border border-gray-700 p-4 text-left space-y-2">
-                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">To enable</p>
-                    <code className="text-xs text-orange-400 block">TAVUS_API_KEY=your_key_here</code>
-                    <code className="text-xs text-orange-400 block">TAVUS_REPLICA_ID=r79e1c033f</code>
-                  </div>
-                  <button
-                    onClick={startTavusAvatar}
-                    className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded-lg border border-gray-700 transition-all"
-                  >
-                    Retry connection
-                  </button>
-                </div>
-              )}
-            </div>
+            <LiveCallPanel onEmotionUpdate={handleLiveEmotionUpdate} />
           )}
         </div>
 
@@ -846,30 +819,30 @@ export default function DashboardPage() {
               </p>
             </div>
 
-            {/* Emotion bars from latest turn */}
+            {/* Emotion bars — live call or latest sim turn */}
             <div className="space-y-3 mt-2">
               <EmotionBar
                 label="Anger"
-                value={latestTurn?.emotion_scores.anger ?? 0}
+                value={activeEmotionScores?.anger ?? 0}
                 color="bg-red-400"
               />
               <EmotionBar
                 label="Frustration"
                 value={
-                  latestTurn
-                    ? (latestTurn.emotion_scores.sadness + latestTurn.emotion_scores.disgust) / 2
+                  activeEmotionScores
+                    ? (activeEmotionScores.sadness + activeEmotionScores.disgust) / 2
                     : 0
                 }
                 color="bg-amber-400"
               />
               <EmotionBar
                 label="Neutral"
-                value={latestTurn?.emotion_scores.neutral ?? 0}
+                value={activeEmotionScores?.neutral ?? 0}
                 color="bg-blue-400"
               />
               <EmotionBar
                 label="Joy"
-                value={latestTurn?.emotion_scores.joy ?? 0}
+                value={activeEmotionScores?.joy ?? 0}
                 color="bg-emerald-400"
               />
             </div>
@@ -878,8 +851,8 @@ export default function DashboardPage() {
           {/* Live Coaching Signal */}
           <section>
             <SectionHeader>Live Coaching Signal</SectionHeader>
-            {latestTurn ? (() => {
-              const sig = COACHING_SIGNALS[latestTurn.emotion_level] ?? COACHING_SIGNALS[0]
+            {activeEmotionScores ? (() => {
+              const sig = COACHING_SIGNALS[activeEmotionLevel] ?? COACHING_SIGNALS[0]
               return (
                 <div className={`rounded-lg border p-3 space-y-2 ${sig.borderClass}`}>
                   <div className="flex items-center justify-between">
