@@ -22,6 +22,7 @@ from sse_starlette.sse import EventSourceResponse
 from .redis_store import create_session, get_session
 from .scenarios import SCENARIOS
 from .simulator import run_simulation
+from .usage import get_elevenlabs_balance
 
 # Load environment variables from .env file at import time
 load_dotenv()
@@ -197,6 +198,22 @@ async def stream_session_events(session_id: str):
             await asyncio.sleep(0.5)
 
     return EventSourceResponse(event_generator())
+
+
+@app.get("/api/usage")
+async def get_usage_endpoint():
+    mock_mode = os.getenv("MOCK_MODE", "false").lower() == "true"
+    tts_enabled = os.getenv("ENABLE_TTS", "false").lower() == "true" and not mock_mode
+    el_balance = await get_elevenlabs_balance()
+    return {
+        "mock_mode": mock_mode,
+        "tts_enabled": tts_enabled,
+        "elevenlabs": el_balance,
+        "huggingface": {
+            "status": "local" if not os.getenv("HUGGINGFACE_API_KEY") else "api",
+            "model": "j-hartmann/emotion-english-distilroberta-base",
+        },
+    }
 
 
 @app.get("/api/audio/{session_id}/{turn_num}/{speaker}")
