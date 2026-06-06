@@ -28,9 +28,10 @@ logger = logging.getLogger(__name__)
 SimMode = Literal["passing", "failing"]
 
 # Default voice IDs — can be overridden via environment variables.
-# Agent voice defaults to same as caller to avoid paid-library-voice 402 errors.
+# Both must be ElevenLabs premade voices (free tier); library voices return 402.
+# Caller: George (JBFqnCBsd6RMkjVDRZzb) — Agent: Adam (pNInz6obpgDQGcFmaJgB)
 _DEFAULT_CALLER_VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"
-_DEFAULT_AGENT_VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"
+_DEFAULT_AGENT_VOICE_ID = "pNInz6obpgDQGcFmaJgB"
 
 
 def get_audio_path(session_id: str, turn_num: int, speaker: str) -> str:
