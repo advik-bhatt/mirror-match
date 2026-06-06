@@ -226,6 +226,8 @@ export default function Page() {
   const transcriptRef = useRef<HTMLDivElement>(null)
   const turnCount = useRef(0)
   const prevLevelRef = useRef(0)
+  const angerRef = useRef(0)
+  const [redisStats, setRedisStats] = useState<{ turns: number; escalations: number; peakAnger: number } | null>(null)
 
   useEffect(() => {
     if (transcriptRef.current) transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight
@@ -243,6 +245,7 @@ export default function Page() {
   const handleEmotionUpdate = useCallback((scores: EmotionScores, level: number) => {
     setEmotionScores(scores)
     setEmotionLevel(level)
+    angerRef.current = scores.anger
     setChartData(prev => [...prev, {
       turn: ++turnCount.current,
       anger: scores.anger,
@@ -264,9 +267,12 @@ export default function Page() {
           speaker: entry.speaker,
           text: entry.text,
           emotion_level: entry.emotionLevel,
-          anger: 0,
+          anger: angerRef.current,
         }),
       })
+        .then(r => r.json())
+        .then(d => { if (d.summary) setRedisStats(d.summary) })
+        .catch(() => {})
     }
   }, [sessionId])
 
@@ -274,6 +280,7 @@ export default function Page() {
     setCallActive(true)
     setChartData([])
     setTranscript([])
+    setRedisStats(null)
     turnCount.current = 0
     const id = await createSession()
     setSessionId(id)
@@ -298,6 +305,16 @@ export default function Page() {
           <span className="text-gray-600 text-xs">· Voice Agent QA</span>
         </div>
         <div className="flex items-center gap-4">
+          {redisStats && (
+            <span className="hidden sm:flex items-center gap-2 text-[10px] font-mono text-gray-500 border border-white/5 rounded-full px-2.5 py-1">
+              <span className="text-red-500 font-bold">REDIS</span>
+              <span>{redisStats.turns} turns</span>
+              <span className="text-gray-700">·</span>
+              <span>{redisStats.escalations} escalations</span>
+              <span className="text-gray-700">·</span>
+              <span>peak {Math.round(redisStats.peakAnger * 100)}%</span>
+            </span>
+          )}
           {callActive && (
             <span className="flex items-center gap-2 text-xs text-red-400 font-mono">
               <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
