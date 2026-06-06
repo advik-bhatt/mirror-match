@@ -64,8 +64,18 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:800
 const SCENARIOS = [
   {
     id: 'billing_issue',
-    name: 'Billing Issue',
-    description: 'Customer disputes an unexpected charge on their account and demands a refund.',
+    name: 'Unexpected Charge',
+    description: 'Customer disputes a $149 charge and escalates to threatening cancellation.',
+  },
+  {
+    id: 'service_outage',
+    name: 'Service Outage',
+    description: 'Business owner losing revenue during a platform outage demands answers and compensation.',
+  },
+  {
+    id: 'wrong_item_shipped',
+    name: 'Wrong Item Shipped',
+    description: 'Customer received the wrong order and needs the correct item before an event tomorrow.',
   },
 ]
 
@@ -307,8 +317,6 @@ export default function DashboardPage() {
   const [isRunning, setIsRunning] = useState(false)
   const [usage, setUsage] = useState<UsageData | null>(null)
   const [centerTab, setCenterTab] = useState<'eval' | 'avatar'>('eval')
-  const [tavusUrl, setTavusUrl] = useState<string | null>(null)
-  const [tavusLoading, setTavusLoading] = useState(false)
   const [liveEmotionScores, setLiveEmotionScores] = useState<EmotionScores | null>(null)
   const [liveEmotionLevel, setLiveEmotionLevel] = useState<number>(0)
 
@@ -340,20 +348,6 @@ export default function DashboardPage() {
     setLiveEmotionScores(scores as EmotionScores)
     setLiveEmotionLevel(level)
   }, [])
-
-  const startTavusAvatar = useCallback(async () => {
-    if (tavusLoading) return
-    setTavusLoading(true)
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/tavus/conversation`, { method: 'POST' })
-      if (res.ok) {
-        const data = await res.json() as { conversation_url: string | null }
-        setTavusUrl(data.conversation_url)
-      }
-    } catch { /* ignore */ } finally {
-      setTavusLoading(false)
-    }
-  }, [tavusLoading])
 
   // Fetch usage on mount
   useEffect(() => {
