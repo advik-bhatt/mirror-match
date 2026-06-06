@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 
 const EmotionArcChart = dynamic(() => import('../components/EmotionChart'), { ssr: false })
-const LiveCallPanel = dynamic(() => import('../components/LiveCallPanel'), { ssr: false })
+const TavusPanel = dynamic(() => import('../components/TavusPanel'), { ssr: false })
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -802,7 +802,7 @@ export default function DashboardPage() {
                   : 'text-gray-500 border-transparent hover:text-gray-300'
               }`}
             >
-              🎙 Live Practice
+              🎭 Live Avatar
             </button>
           </div>
 
@@ -922,9 +922,9 @@ export default function DashboardPage() {
             </>
           )}
 
-          {/* Live Practice tab */}
+          {/* Live Avatar tab */}
           {centerTab === 'avatar' && (
-            <LiveCallPanel onEmotionUpdate={handleLiveEmotionUpdate} />
+            <TavusPanel onEmotionUpdate={handleLiveEmotionUpdate} />
           )}
         </div>
 
