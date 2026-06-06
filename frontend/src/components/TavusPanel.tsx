@@ -1,18 +1,86 @@
 'use client'
 
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useEffect, useRef } from 'react'
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
 
-interface Props {
-  onEmotionUpdate?: (scores: Record<string, number>, emotionLevel: number) => void
+export interface TranscriptEntry {
+  id: number
+  speaker: 'customer' | 'agent'
+  text: string
+  emotionLevel: number
+  timestamp: string
 }
 
-export default function TavusPanel({ onEmotionUpdate: _onEmotionUpdate }: Props) {
+interface Props {
+  onEmotionUpdate?: (scores: Record<string, number>, emotionLevel: number) => void
+  onTranscript?: (entry: TranscriptEntry) => void
+}
+
+let entryId = 0
+
+export default function TavusPanel({ onEmotionUpdate, onTranscript }: Props) {
   const [conversationUrl, setConversationUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [ended, setEnded] = useState(false)
+  const [callActive, setCallActive] = useState(false)
+  const recognitionRef = useRef<SpeechRecognition | null>(null)
+
+  const classifyAndEmit = useCallback(async (text: string, speaker: 'customer' | 'agent') => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/classify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      })
+      const data = await res.json() as { scores: Record<string, number>; emotion_level: number }
+      onEmotionUpdate?.(data.scores, data.emotion_level)
+      onTranscript?.({
+        id: ++entryId,
+        speaker,
+        text,
+        emotionLevel: data.emotion_level,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      })
+    } catch { /* ignore */ }
+  }, [onEmotionUpdate, onTranscript])
+
+  // Start speech recognition when call goes live
+  useEffect(() => {
+    if (!callActive) {
+      recognitionRef.current?.stop()
+      recognitionRef.current = null
+      return
+    }
+
+    const SR = (window as Window & { SpeechRecognition?: typeof SpeechRecognition; webkitSpeechRecognition?: typeof SpeechRecognition }).SpeechRecognition
+      || (window as Window & { webkitSpeechRecognition?: typeof SpeechRecognition }).webkitSpeechRecognition
+    if (!SR) return
+
+    const recognition = new SR()
+    recognition.continuous = true
+    recognition.interimResults = false
+    recognition.lang = 'en-US'
+
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      const result = event.results[event.results.length - 1]
+      if (result.isFinal) {
+        const text = result[0].transcript.trim()
+        if (text.length > 3) void classifyAndEmit(text, 'customer')
+      }
+    }
+
+    recognition.onerror = () => {
+      setTimeout(() => recognition.start(), 1000)
+    }
+
+    recognition.start()
+    recognitionRef.current = recognition
+
+    return () => {
+      recognition.stop()
+    }
+  }, [callActive, classifyAndEmit])
 
   const startCall = useCallback(async () => {
     setLoading(true)
@@ -22,11 +90,12 @@ export default function TavusPanel({ onEmotionUpdate: _onEmotionUpdate }: Props)
       const data = await res.json() as { conversation_url?: string; error?: string }
       if (data.conversation_url) {
         setConversationUrl(data.conversation_url)
+        setCallActive(true)
       } else {
-        setError(data.error ?? 'Could not start Tavus session')
+        setError(data.error ?? 'Could not start session')
       }
     } catch {
-      setError('Backend unreachable — is the server running?')
+      setError('Backend unreachable')
     } finally {
       setLoading(false)
     }
@@ -34,8 +103,7 @@ export default function TavusPanel({ onEmotionUpdate: _onEmotionUpdate }: Props)
 
   const endCall = useCallback(() => {
     setConversationUrl(null)
-    setEnded(true)
-    setTimeout(() => setEnded(false), 3000)
+    setCallActive(false)
   }, [])
 
   if (conversationUrl) {
@@ -69,19 +137,11 @@ export default function TavusPanel({ onEmotionUpdate: _onEmotionUpdate }: Props)
         <div className="text-6xl">🎭</div>
         <h2 className="text-xl font-bold text-white">Live Agent Evaluation</h2>
         <p className="text-sm text-gray-400 max-w-sm leading-relaxed">
-          You call in as an angry customer. A Tavus AI agent tries to de-escalate you.
-          MirrorMatch tracks the agent's performance in real time.
+          Call in as an angry customer. The Tavus AI agent tries to de-escalate you.
+          MirrorMatch monitors the agent's performance in real time.
         </p>
       </div>
-
-      {ended && (
-        <p className="text-sm text-green-400">Call ended. Session data saved.</p>
-      )}
-
-      {error && (
-        <p className="text-sm text-red-400 text-center max-w-xs">{error}</p>
-      )}
-
+      {error && <p className="text-sm text-red-400 text-center max-w-xs">{error}</p>}
       <button
         onClick={startCall}
         disabled={loading}
@@ -91,22 +151,8 @@ export default function TavusPanel({ onEmotionUpdate: _onEmotionUpdate }: Props)
             : 'bg-orange-500 hover:bg-orange-400 text-white shadow-lg shadow-orange-500/20'
         }`}
       >
-        {loading ? (
-          <>
-            <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
-            Connecting…
-          </>
-        ) : (
-          <>🎙 Start Live Call</>
-        )}
+        {loading ? 'Connecting…' : '🎙 Start Live Call'}
       </button>
-
-      <p className="text-xs text-gray-600 text-center">
-        Powered by Tavus CVI · Requires TAVUS_API_KEY
-      </p>
     </div>
   )
 }
