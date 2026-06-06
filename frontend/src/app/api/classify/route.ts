@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { checkRateLimit } from '@/lib/redis'
 
 const HF_API_KEY = process.env.HUGGINGFACE_API_KEY
 const HF_MODEL = 'j-hartmann/emotion-english-distilroberta-base'
@@ -21,6 +22,10 @@ function keywordFallback(text: string): Record<string, number> {
 }
 
 export async function POST(req: NextRequest) {
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+  const allowed = await checkRateLimit(ip, 'classify', 40) // 40 classifications/min per IP
+  if (!allowed) return NextResponse.json({ error: 'rate limited' }, { status: 429 })
+
   const { text } = await req.json() as { text: string }
   if (!text) return NextResponse.json({ error: 'no text' }, { status: 400 })
 
