@@ -72,6 +72,7 @@ export default function LiveCallPanel({ onEmotionUpdate }: LiveCallPanelProps) {
       const { Conversation } = await import('@11labs/client')
       const conv = await Conversation.startSession({
         agentId: AGENT_ID,
+        connectionType: 'webrtc',
         onConnect: () => setCallStatus('active'),
         onDisconnect: () => setCallStatus('ended'),
         onError: (msg: string) => { setError(msg); setCallStatus('idle') },
