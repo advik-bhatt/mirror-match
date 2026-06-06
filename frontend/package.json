@@ -9,11 +9,16 @@
   },
   "dependencies": {
     "@11labs/client": "^0.2.0",
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.6.1",
+    "@supabase/supabase-js": "^2.107.0",
+    "@types/three": "^0.184.1",
     "lucide-react": "^0.378.0",
     "next": "14.2.3",
     "react": "^18",
     "react-dom": "^18",
-    "recharts": "^2.12.7"
+    "recharts": "^2.12.7",
+    "three": "^0.184.0"
   },
   "devDependencies": {
     "@types/node": "^20",
