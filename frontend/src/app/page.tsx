@@ -394,7 +394,7 @@ export default function Page() {
             <div className="mt-auto pt-4 border-t border-white/5">
               <p className="text-[10px] font-mono tracking-widest text-gray-700 uppercase mb-2">Powered by</p>
               <div className="flex flex-wrap gap-1.5">
-                {['ElevenLabs', 'Tavus', 'Supabase', 'Veris', 'HPE'].map(s => (
+                {['Tavus', 'ElevenLabs', 'Redis', 'HuggingFace', 'Supabase', 'Web Speech API', 'Next.js', 'Vercel'].map(s => (
                   <span key={s} className="px-2 py-0.5 text-[10px] rounded border border-white/5 text-gray-600">{s}</span>
                 ))}
               </div>
