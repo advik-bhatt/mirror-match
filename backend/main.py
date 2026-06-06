@@ -12,6 +12,7 @@ import os
 import uuid
 from contextlib import asynccontextmanager
 
+import httpx
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -242,3 +243,43 @@ async def serve_audio(session_id: str, turn_num: int, speaker: str):
         media_type="audio/mpeg",
         filename=f"turn{turn_num}_{speaker}.mp3",
     )
+
+
+@app.post("/api/tavus/conversation")
+async def create_tavus_conversation():
+    """
+    Create a Tavus CVI conversation for the Live Avatar panel.
+
+    Returns a conversation_url that can be embedded as an iframe.
+    Falls back to mock=True when TAVUS_API_KEY is not configured.
+    """
+    tavus_api_key = os.getenv("TAVUS_API_KEY")
+    mock_mode = os.getenv("MOCK_MODE", "false").lower() == "true"
+
+    if not tavus_api_key or tavus_api_key == "mock" or mock_mode:
+        return {"conversation_url": None, "mock": True}
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                "https://tavusapi.com/v2/conversations",
+                headers={"x-api-key": tavus_api_key},
+                json={
+                    "replica_id": os.getenv("TAVUS_REPLICA_ID", "r79e1c033f"),
+                    "conversation_name": "MirrorMatch Demo",
+                    "conversational_context": (
+                        "You are a frustrated customer calling about an unexpected charge on your account. "
+                        "Start calm but escalate your frustration as the conversation progresses."
+                    ),
+                },
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                logger.info("Tavus conversation created: %s", data.get("conversation_id"))
+                return {"conversation_url": data.get("conversation_url"), "mock": False}
+            else:
+                logger.warning("Tavus API returned %d: %s", resp.status_code, resp.text)
+    except Exception as exc:
+        logger.warning("Tavus API error: %s", exc)
+
+    return {"conversation_url": None, "mock": True, "error": "Tavus API unavailable"}
