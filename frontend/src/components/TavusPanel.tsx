@@ -67,10 +67,10 @@ export default function TavusPanel({ onEmotionUpdate: _onEmotionUpdate }: Props)
     <div className="flex-1 flex flex-col items-center justify-center gap-6 p-8">
       <div className="text-center space-y-3">
         <div className="text-6xl">🎭</div>
-        <h2 className="text-xl font-bold text-white">Tavus Live Avatar</h2>
+        <h2 className="text-xl font-bold text-white">Live Agent Evaluation</h2>
         <p className="text-sm text-gray-400 max-w-sm leading-relaxed">
-          A photorealistic AI customer calls you live. Practice de-escalation while
-          MirrorMatch tracks their emotional state in real time.
+          You call in as an angry customer. A Tavus AI agent tries to de-escalate you.
+          MirrorMatch tracks the agent's performance in real time.
         </p>
       </div>
 
