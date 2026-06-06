@@ -1,0 +1,11 @@
+ARG GVISOR_BASE
+FROM ${GVISOR_BASE}
+
+COPY frontend/package.json frontend/package-lock.json /agent/
+WORKDIR /agent
+RUN npm ci --legacy-peer-deps --omit=dev
+
+COPY frontend /agent/
+RUN npm run build
+
+WORKDIR /app
