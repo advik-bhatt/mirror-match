@@ -1,0 +1,12 @@
+.git
+.env
+.env.*
+frontend/
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+/tmp/mm_*
+*.mp3
+.veris/veris.yaml
