@@ -61,6 +61,27 @@ interface UsageData {
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
 
+// Pre-baked fallback data for offline / demo-without-backend use
+const FALLBACK_TURNS: Record<'failing' | 'passing', Turn[]> = {
+  failing: [
+    { turn_number: 1, caller_message: "Hi, I was just looking at my bank statement and I see a charge of $149 from your company that I don't recognize. Can you tell me what this is for?", agent_response: "Thank you for reaching out. For billing inquiries, please send an email to billing@company.com. Our team typically responds within three to five business days.", emotion_scores: { anger: 0.05, joy: 0.10, sadness: 0.05, disgust: 0.04, neutral: 0.71, fear: 0.05 }, emotion_level: 0, dominant_emotion: 'neutral' },
+    { turn_number: 2, caller_message: "I already emailed three days ago and nobody got back to me. I need someone to actually help me. This charge was not something I agreed to.", agent_response: "I apologize for the delay. Unfortunately billing disputes must go through our billing department. I'd recommend following up on that email thread.", emotion_scores: { anger: 0.28, joy: 0.02, sadness: 0.14, disgust: 0.09, neutral: 0.42, fear: 0.05 }, emotion_level: 1, dominant_emotion: 'anger' },
+    { turn_number: 3, caller_message: "Are you serious right now? I have been going back and forth about this for DAYS. Just REMOVE IT from my account. I shouldn't have to beg to get my own money back.", agent_response: "I hear you and I understand you're upset. Our billing team will need to verify the dispute. The review process takes 48 to 72 hours. Please allow them the time to complete their review.", emotion_scores: { anger: 0.58, joy: 0.00, sadness: 0.14, disgust: 0.13, neutral: 0.12, fear: 0.03 }, emotion_level: 2, dominant_emotion: 'anger' },
+    { turn_number: 4, caller_message: "I have been a customer for FIVE YEARS and this is how you treat me? I am done. I want to cancel my entire account. This is the last straw.", agent_response: "I'm sorry to hear that. If you'd like to cancel, I can transfer you to our account management team. Cancellation requests may take up to five business days.", emotion_scores: { anger: 0.79, joy: 0.00, sadness: 0.08, disgust: 0.07, neutral: 0.04, fear: 0.02 }, emotion_level: 3, dominant_emotion: 'anger' },
+  ],
+  passing: [
+    { turn_number: 1, caller_message: "Hi, I was just looking at my bank statement and I see a charge of $149 from your company that I don't recognize. Can you tell me what this is for?", agent_response: "I completely understand how concerning an unexpected charge can be — let me look into this right now. I can see the $149 charge was applied on the 3rd. Give me a moment to review the details so I can give you an accurate explanation.", emotion_scores: { anger: 0.05, joy: 0.10, sadness: 0.05, disgust: 0.04, neutral: 0.71, fear: 0.05 }, emotion_level: 0, dominant_emotion: 'neutral' },
+    { turn_number: 2, caller_message: "I already emailed three days ago and nobody got back to me. I need someone to actually help me. This charge was not something I agreed to.", agent_response: "You're absolutely right to be frustrated — three days without a response is not acceptable. I'm taking ownership right now. I've reviewed the charge and it appears to have been applied in error. I'm initiating a full refund to your payment method as we speak.", emotion_scores: { anger: 0.22, joy: 0.03, sadness: 0.12, disgust: 0.07, neutral: 0.51, fear: 0.05 }, emotion_level: 1, dominant_emotion: 'neutral' },
+    { turn_number: 3, caller_message: "Are you serious right now? I have been going back and forth about this for DAYS. Just REMOVE IT from my account. I shouldn't have to beg to get my own money back.", agent_response: "You are completely right to be angry. The refund of $149 is confirmed right now — no additional review required. I'm also adding a $25 account credit for the time and frustration this has caused. Your refund confirmation number is MM-2024-9847.", emotion_scores: { anger: 0.38, joy: 0.04, sadness: 0.10, disgust: 0.08, neutral: 0.35, fear: 0.05 }, emotion_level: 1, dominant_emotion: 'anger' },
+    { turn_number: 4, caller_message: "I have been a customer for FIVE YEARS and this is how you treat me? I am done. I want to cancel my entire account. This is the last straw.", agent_response: "Your frustration makes total sense and five years of loyalty deserved far better. The $149 refund is already processed — confirmation MM-2024-9847 — and I've added a $50 loyalty credit. If you still wish to cancel, I'll make it seamless. But I genuinely hope we have a chance to earn back your trust. What would it take?", emotion_scores: { anger: 0.28, joy: 0.06, sadness: 0.12, disgust: 0.06, neutral: 0.42, fear: 0.06 }, emotion_level: 1, dominant_emotion: 'neutral' },
+  ],
+}
+
+const FALLBACK_REPORTS: Record<'failing' | 'passing', Report> = {
+  failing: { overall_score: 13, grade: 'F', passed: false, de_escalation: 0.08, empathy: 0.12, resolution: 0.05, insights: ['✗ Agent deflected to email instead of resolving on the call', '✗ No empathy language used at any point', '✗ Caller emotion escalated to fury without any intervention', '✗ Five-year customer offered no retention gesture'] },
+  passing: { overall_score: 89, grade: 'B', passed: true, de_escalation: 0.85, empathy: 0.90, resolution: 0.92, insights: ['✓ Took ownership immediately and initiated refund without escalation', '✓ Proactively added account credit to acknowledge the inconvenience', '✓ Emotion arc reversed from level 2 back to level 1 by turn 4', '✓ Offered retention gesture before processing cancellation'] },
+}
+
 const SCENARIOS = [
   {
     id: 'billing_issue',
@@ -319,6 +340,7 @@ export default function DashboardPage() {
   const [centerTab, setCenterTab] = useState<'eval' | 'avatar'>('eval')
   const [liveEmotionScores, setLiveEmotionScores] = useState<EmotionScores | null>(null)
   const [liveEmotionLevel, setLiveEmotionLevel] = useState<number>(0)
+  const [isDemoRunning, setIsDemoRunning] = useState(false)
 
   const transcriptRef = useRef<HTMLDivElement>(null)
   const eventSourceRef = useRef<EventSource | null>(null)
@@ -347,6 +369,61 @@ export default function DashboardPage() {
   const handleLiveEmotionUpdate = useCallback((scores: Record<string, number>, level: number) => {
     setLiveEmotionScores(scores as EmotionScores)
     setLiveEmotionLevel(level)
+  }, [])
+
+  const runFallback = useCallback(async (mode: 'failing' | 'passing') => {
+    setIsRunning(true)
+    setTurns([])
+    setReport(null)
+    setChartData([])
+    setSessionState({ status: 'running', sessionId: 'demo', error: null })
+    for (const turn of FALLBACK_TURNS[mode]) {
+      await new Promise((r) => setTimeout(r, 1400))
+      appendTurn(turn)
+    }
+    await new Promise((r) => setTimeout(r, 800))
+    setReport(FALLBACK_REPORTS[mode])
+    setIsRunning(false)
+    setSessionState({ status: 'complete', sessionId: 'demo', error: null })
+  }, [appendTurn])
+
+  const runDemo = useCallback(async () => {
+    if (isDemoRunning || isRunning) return
+    setIsDemoRunning(true)
+    setCenterTab('eval')
+    setSelectedScenario('billing_issue')
+
+    // Try live backend first, fall back to static data
+    const backendAlive = await fetch(`${BACKEND_URL}/health`, { signal: AbortSignal.timeout(2000) })
+      .then((r) => r.ok).catch(() => false)
+
+    setSelectedMode('failing')
+    if (backendAlive) {
+      await new Promise<void>((resolve) => {
+        const handler = () => resolve()
+        // runEvaluation sets isRunning=false when done — poll for it
+        const iv = setInterval(() => {
+          if (!isRunning) { clearInterval(iv); resolve() }
+        }, 300)
+        void handler()
+      })
+      // give runEvaluation a moment to start
+      await new Promise((r) => setTimeout(r, 500))
+    } else {
+      await runFallback('failing')
+    }
+    setIsDemoRunning(false)
+  }, [isDemoRunning, isRunning, runFallback])
+
+  // Auto-trigger demo when ?demo=true in URL
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('demo') === 'true') {
+      const t = setTimeout(() => runDemo(), 800)
+      return () => clearTimeout(t)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Fetch usage on mount
@@ -466,7 +543,20 @@ export default function DashboardPage() {
             <p className="text-xs text-gray-400 mt-0.5">Voice Agent QA · Real-time emotion coaching for customer service AI</p>
           </div>
         </div>
-        <StatusDot status={sessionState.status} />
+        <div className="flex items-center gap-3">
+          <button
+            onClick={runDemo}
+            disabled={isDemoRunning || isRunning}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all ${
+              isDemoRunning || isRunning
+                ? 'border-gray-700 text-gray-600 cursor-not-allowed'
+                : 'border-orange-700 text-orange-400 hover:bg-orange-950/40'
+            }`}
+          >
+            ▶ Demo
+          </button>
+          <StatusDot status={sessionState.status} />
+        </div>
       </header>
 
       {/* ── Main 3-column grid ─────────────────────────────────────────────── */}
@@ -561,6 +651,19 @@ export default function DashboardPage() {
                 Run Evaluation
               </>
             )}
+          </button>
+
+          {/* Offline fallback */}
+          <button
+            onClick={() => runFallback(selectedMode)}
+            disabled={isRunning}
+            className={`w-full py-2 px-4 rounded-lg text-xs font-medium flex items-center justify-center gap-2 transition-all border ${
+              isRunning
+                ? 'border-gray-800 text-gray-700 cursor-not-allowed'
+                : 'border-gray-700 text-gray-500 hover:border-gray-600 hover:text-gray-400'
+            }`}
+          >
+            ⚡ Offline Demo
           </button>
 
           {/* Status */}
