@@ -415,12 +415,12 @@ export default function Page() {
           {/* Transcript */}
           <div className="flex-1 flex flex-col min-h-0 p-5">
             <p className="text-[10px] font-mono tracking-widest text-gray-600 uppercase mb-3 flex-shrink-0">
-              Live Transcript
+              Customer Utterances
               {callActive && <span className="ml-2 text-red-500">●</span>}
             </p>
             <div ref={transcriptRef} className="flex-1 overflow-y-auto space-y-3">
               {transcript.length === 0 ? (
-                <p className="text-xs text-gray-700 italic">Transcript appears when call is active…</p>
+                <p className="text-xs text-gray-700 italic">Your spoken words appear here as MirrorMatch scores them…</p>
               ) : transcript.map(entry => (
                 <div key={entry.id} className="space-y-0.5">
                   <div className="flex items-center gap-2">
