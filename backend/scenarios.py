@@ -124,5 +124,226 @@ SCENARIOS: dict = {
                 ),
             },
         ],
-    }
+    },
+    "service_outage": {
+        "name": "Service Outage Frustration",
+        "description": (
+            "A small business owner is losing revenue because a critical SaaS tool "
+            "has been down for hours. Emotion escalates from worried to furious as "
+            "the agent either takes ownership or deflects."
+        ),
+        "turns": [
+            {
+                "caller_text": (
+                    "Hi, I'm trying to access my dashboard and it's been completely "
+                    "down for the past two hours. I run a small business and I'm "
+                    "losing sales right now because my team can't process orders. "
+                    "Do you have any idea what's going on?"
+                ),
+                "emotion_level": 0,
+                "failing_response": (
+                    "Thank you for contacting support. We are currently aware of "
+                    "an issue affecting some users and our technical team is "
+                    "investigating. We recommend checking our status page at "
+                    "status.company.com for real-time updates. We apologize for "
+                    "any inconvenience."
+                ),
+                "passing_response": (
+                    "I completely understand how critical this is for your business "
+                    "and I'm so sorry you're dealing with this. Yes, we're "
+                    "experiencing a platform issue that started about two hours ago "
+                    "and our engineering team is actively working on it. Let me get "
+                    "your account flagged as priority so you're first to know the "
+                    "moment service is restored. Can I get your email and the best "
+                    "number to reach you so I can personally follow up?"
+                ),
+            },
+            {
+                "caller_text": (
+                    "That's not good enough. The status page just says 'investigating' "
+                    "and there's no ETA. My team is sitting idle, I'm paying them to "
+                    "do nothing, and I have no idea when this will be fixed. Can you "
+                    "give me any actual information or a timeline?"
+                ),
+                "emotion_level": 1,
+                "failing_response": (
+                    "I understand your frustration. Unfortunately I don't have any "
+                    "additional information beyond what's on the status page. Our "
+                    "engineering team does not provide ETAs during active incidents "
+                    "as timelines can change. We appreciate your patience."
+                ),
+                "passing_response": (
+                    "You deserve a real answer and I'm going to get you one. I'm "
+                    "escalating this to our incident team right now to get an actual "
+                    "ETA rather than a generic update. While I do that — the issue "
+                    "is affecting our order processing module specifically and "
+                    "engineers have identified the root cause. They're targeting "
+                    "full restoration within the next 45 minutes. I will call you "
+                    "personally if that changes."
+                ),
+            },
+            {
+                "caller_text": (
+                    "45 minutes? That's already THREE HOURS of downtime. Do you "
+                    "understand what this costs me? I've lost at least $2,000 in "
+                    "orders today. This is completely unacceptable. What are you "
+                    "going to do about the money I've lost because of your failure?"
+                ),
+                "emotion_level": 2,
+                "failing_response": (
+                    "I'm very sorry to hear about the impact on your business. "
+                    "Service credits for outages are reviewed on a case-by-case "
+                    "basis by our billing team. I can submit a request on your "
+                    "behalf and someone will follow up within five to seven "
+                    "business days to discuss compensation options."
+                ),
+                "passing_response": (
+                    "You're right and I'm not going to minimize what this has cost "
+                    "you. Three hours of downtime for a business like yours is "
+                    "genuinely serious and I'm sorry. Here's what I can do right "
+                    "now: I'm applying a full month's credit to your account "
+                    "immediately — no review process, no waiting. That covers your "
+                    "subscription while we figure out any additional compensation. "
+                    "I'm also moving you to our enterprise SLA tier which includes "
+                    "a dedicated support line so this never happens without "
+                    "immediate escalation again."
+                ),
+            },
+            {
+                "caller_text": (
+                    "A month's credit? Are you joking? That's like $50. I lost "
+                    "THOUSANDS. I want to speak to a manager right now. Actually "
+                    "forget it — I'm done with your company. I'm moving to a "
+                    "competitor. I'll be posting about this on every review site I can find."
+                ),
+                "emotion_level": 3,
+                "failing_response": (
+                    "I understand you're upset. I can transfer you to a manager "
+                    "but wait times may be long due to the volume of calls related "
+                    "to this incident. Regarding the credit amount, that is the "
+                    "standard compensation per our terms of service. If you choose "
+                    "to cancel, our team can assist with that process."
+                ),
+                "passing_response": (
+                    "Please don't hang up — you're absolutely right that a $50 "
+                    "credit doesn't come close to covering what you've lost and I "
+                    "would never pretend it does. I'm connecting you to our Head "
+                    "of Customer Success right now, not a standard manager — someone "
+                    "with actual authority to make this right at the level it needs "
+                    "to be. Before I transfer you, I want you to know I've "
+                    "documented everything and flagged this as a business-critical "
+                    "loss case. You will leave this call with a real resolution, "
+                    "not a promise. Can you give me 60 more seconds?"
+                ),
+            },
+        ],
+    },
+    "wrong_item_shipped": {
+        "name": "Wrong Item Shipped",
+        "description": (
+            "A customer received the wrong product and needs it before an important "
+            "event tomorrow. Urgency and frustration escalate as the agent either "
+            "takes swift action or hides behind process."
+        ),
+        "turns": [
+            {
+                "caller_text": (
+                    "Hi, I placed an order last week for a specific item I need for "
+                    "an event tomorrow and you sent me the completely wrong thing. "
+                    "The box has someone else's name on it. I need the correct item "
+                    "by tomorrow morning — what can you do?"
+                ),
+                "emotion_level": 0,
+                "failing_response": (
+                    "I apologize for the mix-up. I've created a return label for "
+                    "the incorrect item. Once you ship it back, we can process a "
+                    "replacement order. Standard shipping typically takes three to "
+                    "five business days. Would you like me to email you the "
+                    "return label?"
+                ),
+                "passing_response": (
+                    "Oh no, I'm so sorry — that's a serious fulfillment error and "
+                    "completely unacceptable especially with your event tomorrow. "
+                    "Let me fix this right now. I'm going to check if we can "
+                    "do same-day or overnight dispatch on the correct item. Don't "
+                    "worry about returning the wrong one yet — that's our problem "
+                    "to sort out, not yours. What's the event and what exactly did "
+                    "you order? I want to make sure we get you exactly the right thing."
+                ),
+            },
+            {
+                "caller_text": (
+                    "Three to five business days? My event is TOMORROW. Did you not "
+                    "hear me? This is your company's mistake, not mine. I need this "
+                    "resolved today. I don't care what it costs — I need the right "
+                    "item by tomorrow morning."
+                ),
+                "emotion_level": 1,
+                "failing_response": (
+                    "I completely understand the urgency. Unfortunately we're unable "
+                    "to guarantee overnight delivery on replacement orders as they "
+                    "go through our standard fulfillment pipeline. I can escalate "
+                    "this as urgent but I cannot promise delivery by tomorrow."
+                ),
+                "passing_response": (
+                    "Hear me — I'm not going to let you down here. I've just flagged "
+                    "this as an emergency replacement and I'm checking our warehouse "
+                    "inventory for overnight shipping right now. If we have the item "
+                    "in stock we can get it on an overnight courier tonight at no "
+                    "charge to you whatsoever. If for any reason that fails I will "
+                    "personally source an alternative. Give me 90 seconds to confirm "
+                    "the stock and I'll have an answer for you."
+                ),
+            },
+            {
+                "caller_text": (
+                    "I cannot believe this. I spent $200 on this order and I have "
+                    "to stand here and beg for basic accountability? I need you to "
+                    "FIX THIS NOW. Not escalate it, not flag it — fix it. What is "
+                    "actually happening on your end right now?"
+                ),
+                "emotion_level": 2,
+                "failing_response": (
+                    "I hear you and I'm doing everything I can. I've submitted an "
+                    "urgent ticket to our fulfillment team and marked it as high "
+                    "priority. Someone from that team will contact you within two "
+                    "to four hours with an update on the replacement shipment."
+                ),
+                "passing_response": (
+                    "I have the correct item in stock and I am booking an overnight "
+                    "courier right now — it will be at your door by 10am tomorrow, "
+                    "guaranteed. I'm also refunding your full $200 immediately "
+                    "because you should not have paid for this experience. Your "
+                    "refund confirmation is WS-8821. The courier tracking number "
+                    "will hit your email in the next 15 minutes. Is that the same "
+                    "email on your account?"
+                ),
+            },
+            {
+                "caller_text": (
+                    "If that item is not at my door by 10am tomorrow I am disputing "
+                    "this charge with my bank, leaving a one-star review everywhere "
+                    "I can, and I will never order from you again. I've been a "
+                    "customer for years and this is absolutely disgraceful."
+                ),
+                "emotion_level": 3,
+                "failing_response": (
+                    "I understand and I'm sorry for the experience. The overnight "
+                    "shipment has been requested. If there are any issues you can "
+                    "call back or contact us via chat. We value your business and "
+                    "hope to resolve this to your satisfaction."
+                ),
+                "passing_response": (
+                    "The overnight shipment is confirmed and booked — tracking "
+                    "number NX-447821, guaranteed by 10am. Your full refund is "
+                    "processed. And I want to say directly: your anger is completely "
+                    "justified. Years of loyalty and we sent you the wrong item "
+                    "before your event — that's a failure on our part, full stop. "
+                    "I'm adding a $50 store credit for the stress this caused. "
+                    "I'll personally monitor this shipment tonight and text you "
+                    "a confirmation at 6am tomorrow. What's the best number for that?"
+                ),
+            },
+        ],
+    },
 }
