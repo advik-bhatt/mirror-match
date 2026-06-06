@@ -1,0 +1,16 @@
+ARG GVISOR_BASE
+FROM ${GVISOR_BASE}
+
+RUN apt-get update && \
+    apt-get install -y redis-server && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY backend/requirements.txt /agent/
+WORKDIR /agent
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY backend/ /agent/backend/
+COPY .veris/start.sh /agent/start.sh
+RUN chmod +x /agent/start.sh
+
+WORKDIR /app
