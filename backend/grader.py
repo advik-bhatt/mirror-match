@@ -152,6 +152,7 @@ def grade_session(turns: list, mode: GradeMode) -> dict:
     insights = _build_insights(mode)
 
     result = {
+        "overall_score": score,
         "score": score,
         "grade": grade,
         "passed": passed,
