@@ -10,3 +10,4 @@ node_modules/
 /tmp/mm_*
 *.mp3
 frontend/next-env.d.ts
+frontend/tsconfig.tsbuildinfo
