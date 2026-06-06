@@ -1,12 +1,19 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+let _client: SupabaseClient | null = null
 
-export const supabase = createClient(url, key)
+function getClient(): SupabaseClient | null {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!url || !key) return null
+  if (!_client) _client = createClient(url, key)
+  return _client
+}
 
 export async function createSession(): Promise<string | null> {
-  const { data, error } = await supabase
+  const client = getClient()
+  if (!client) return null
+  const { data, error } = await client
     .from('mm_sessions')
     .insert({ scenario: 'live_call', status: 'active' })
     .select('id')
@@ -22,7 +29,9 @@ export async function logTurn(
   emotionLevel: number,
   scores: Record<string, number>,
 ) {
-  await supabase.from('mm_turns').insert({
+  const client = getClient()
+  if (!client) return
+  await client.from('mm_turns').insert({
     session_id: sessionId,
     speaker,
     text,
