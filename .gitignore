@@ -9,3 +9,4 @@ node_modules/
 .next/
 /tmp/mm_*
 *.mp3
+frontend/next-env.d.ts
