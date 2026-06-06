@@ -1,0 +1,35 @@
+version: "1.0"
+
+# MirrorMatch — emotion-aware voice agent evaluation harness
+#
+# The actor interacts with MirrorMatch's HTTP API to create evaluation sessions
+# and poll for results. MirrorMatch reports internal tool calls (emotion
+# classification, grading) back to the Veris engine so the full reasoning
+# trace is observable.
+
+actor:
+  channels:
+    - type: http
+      url: http://localhost:8000/api/sessions
+      method: POST
+      headers:
+        Content-Type: application/json
+      request:
+        static_fields:
+          scenario: billing_issue
+          mode: failing
+      response:
+        type: json
+        message_field: session_id
+  config:
+    MAX_TURNS: "1"
+
+agent:
+  code_path: /agent
+  entry_point: bash /agent/start.sh
+  port: 8000
+  environment:
+    MOCK_MODE: "true"
+    ENABLE_TTS: "false"
+    REDIS_URL: redis://localhost:6379
+    LOG_LEVEL: info

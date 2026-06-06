@@ -15,6 +15,7 @@ from elevenlabs import ElevenLabs
 
 from .emotion import classify_emotion
 from .grader import grade_session
+from .veris_reporter import report_tool_call
 from .redis_store import (
     add_turn,
     publish_event,
@@ -183,6 +184,11 @@ async def run_simulation(
             emotion_scores: dict = {}
             try:
                 emotion_scores = await classify_emotion(caller_text)
+                report_tool_call(
+                    "classify_emotion",
+                    {"text": caller_text, "turn": turn_index},
+                    emotion_scores,
+                )
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Emotion classification failed for turn %d: %s", turn_index, exc)
 
@@ -279,6 +285,11 @@ async def run_simulation(
     # ── Grade the completed session ────────────────────────────────────────────
     try:
         report = grade_session(turns_data, mode)
+        report_tool_call(
+            "grade_session",
+            {"session_id": session_id, "mode": mode, "turn_count": len(turns_data)},
+            report,
+        )
     except Exception as exc:  # noqa: BLE001
         logger.exception("Grading failed for session %s: %s", session_id, exc)
         report = {
