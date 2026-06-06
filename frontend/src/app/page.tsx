@@ -90,6 +90,48 @@ const EMOTION_LEVEL_LABELS: Record<number, string> = {
   3: 'Furious',
 }
 
+const COACHING_SIGNALS: Record<number, {
+  label: string
+  tagClass: string
+  borderClass: string
+  action: string
+  text: string
+  escalate: boolean
+}> = {
+  0: {
+    label: 'Stable',
+    tagClass: 'text-blue-300',
+    borderClass: 'border-blue-900 bg-blue-950/20',
+    action: 'Continue normally',
+    text: 'Caller is calm. Proceed with standard resolution flow.',
+    escalate: false,
+  },
+  1: {
+    label: 'Attention',
+    tagClass: 'text-amber-300',
+    borderClass: 'border-amber-900 bg-amber-950/20',
+    action: 'Validate & empathize',
+    text: 'Frustration detected. Acknowledge the delay, use empathy phrases, avoid policy-only language.',
+    escalate: false,
+  },
+  2: {
+    label: 'Escalation Risk',
+    tagClass: 'text-orange-300',
+    borderClass: 'border-orange-900 bg-orange-950/20',
+    action: 'Resolve or hand off',
+    text: 'Caller is angry. Offer a concrete resolution now. Avoid deflecting or transferring without commitment.',
+    escalate: false,
+  },
+  3: {
+    label: 'Critical',
+    tagClass: 'text-red-300',
+    borderClass: 'border-red-900 bg-red-950/20',
+    action: 'Human handoff now',
+    text: 'Caller is furious. Escalate to a senior human agent. Offer immediate compensation. Do not follow scripts.',
+    escalate: true,
+  },
+}
+
 function getCallerFace(maxAnger: number): string {
   if (maxAnger >= 1.0) return '🤬'
   if (maxAnger >= 0.8) return '😠'
@@ -263,6 +305,9 @@ export default function DashboardPage() {
   const [chartData, setChartData] = useState<ChartPoint[]>([])
   const [isRunning, setIsRunning] = useState(false)
   const [usage, setUsage] = useState<UsageData | null>(null)
+  const [centerTab, setCenterTab] = useState<'eval' | 'avatar'>('eval')
+  const [tavusUrl, setTavusUrl] = useState<string | null>(null)
+  const [tavusLoading, setTavusLoading] = useState(false)
 
   const transcriptRef = useRef<HTMLDivElement>(null)
   const eventSourceRef = useRef<EventSource | null>(null)
@@ -287,6 +332,20 @@ export default function DashboardPage() {
       if (res.ok) setUsage(await res.json())
     } catch { /* ignore */ }
   }, [])
+
+  const startTavusAvatar = useCallback(async () => {
+    if (tavusLoading) return
+    setTavusLoading(true)
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/tavus/conversation`, { method: 'POST' })
+      if (res.ok) {
+        const data = await res.json() as { conversation_url: string | null }
+        setTavusUrl(data.conversation_url)
+      }
+    } catch { /* ignore */ } finally {
+      setTavusLoading(false)
+    }
+  }, [tavusLoading])
 
   // Fetch usage on mount
   useEffect(() => {
@@ -397,7 +456,7 @@ export default function DashboardPage() {
           <span className="text-2xl">🪞</span>
           <div>
             <h1 className="text-lg font-bold text-white leading-none">MirrorMatch</h1>
-            <p className="text-xs text-gray-400 mt-0.5">Emotional IQ Eval Platform</p>
+            <p className="text-xs text-gray-400 mt-0.5">Voice Agent QA · Real-time emotion coaching for customer service AI</p>
           </div>
         </div>
         <StatusDot status={sessionState.status} />
@@ -586,116 +645,190 @@ export default function DashboardPage() {
         {/* ── Center Panel ───────────────────────────────────────────────── */}
         <div className="flex flex-col overflow-hidden">
 
-          {/* Emotion Arc */}
-          <div className="flex-1 flex flex-col border-b border-gray-800 min-h-0">
-            <div className="px-5 py-3 border-b border-gray-800 flex items-center justify-between flex-shrink-0">
-              <h2 className="text-sm font-semibold text-gray-200 flex items-center gap-2">
-                <span className="text-orange-400">📈</span>
-                Emotion Arc
-              </h2>
-              <div className="flex items-center gap-4 text-xs">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-3 h-0.5 bg-red-400 inline-block rounded" />
-                  <span className="text-gray-500">Anger</span>
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-3 h-0.5 bg-amber-400 inline-block rounded" />
-                  <span className="text-gray-500">Frustration</span>
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-3 h-0.5 bg-blue-400 inline-block rounded" />
-                  <span className="text-gray-500">Neutral</span>
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-3 h-0.5 bg-emerald-400 inline-block rounded" />
-                  <span className="text-gray-500">Joy</span>
-                </span>
-              </div>
-            </div>
-            <div className="flex-1 p-4 min-h-0">
-              <EmotionArcChart data={chartData} />
-            </div>
+          {/* Tab bar */}
+          <div className="border-b border-gray-800 px-4 pt-2 flex items-center gap-1 flex-shrink-0 bg-gray-950">
+            <button
+              onClick={() => setCenterTab('eval')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-t-md transition-all border-b-2 ${
+                centerTab === 'eval'
+                  ? 'text-white border-orange-500'
+                  : 'text-gray-500 border-transparent hover:text-gray-300'
+              }`}
+            >
+              📊 Evaluation
+            </button>
+            <button
+              onClick={() => {
+                setCenterTab('avatar')
+                if (!tavusUrl && !tavusLoading) startTavusAvatar()
+              }}
+              className={`px-3 py-1.5 text-xs font-medium rounded-t-md transition-all border-b-2 ${
+                centerTab === 'avatar'
+                  ? 'text-white border-orange-500'
+                  : 'text-gray-500 border-transparent hover:text-gray-300'
+              }`}
+            >
+              🎭 Live Avatar
+            </button>
           </div>
 
-          {/* Live Transcript */}
-          <div className="flex-1 flex flex-col min-h-0">
-            <div className="px-5 py-3 border-b border-gray-800 flex-shrink-0">
-              <h2 className="text-sm font-semibold text-gray-200 flex items-center gap-2">
-                <span className="text-blue-400">💬</span>
-                Live Transcript
-                {isRunning && (
-                  <span className="ml-2 flex items-center gap-1 text-xs text-orange-400 font-normal">
-                    <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />
-                    Live
-                  </span>
-                )}
-              </h2>
-            </div>
-            <div
-              ref={transcriptRef}
-              className="flex-1 overflow-y-auto p-4 space-y-4"
-            >
-              {turns.length === 0 ? (
-                <div className="h-full flex items-center justify-center">
-                  <p className="text-gray-600 text-sm text-center">
-                    Run an evaluation to see the conversation transcript
-                  </p>
-                </div>
-              ) : (
-                turns.map((turn) => (
-                  <div key={turn.turn_number} className="space-y-2">
-                    {/* Turn badge */}
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-mono text-gray-600 bg-gray-800 px-2 py-0.5 rounded">
-                        Turn {turn.turn_number}
-                      </span>
-                      <span
-                        className={`text-xs px-2 py-0.5 rounded font-medium ${
-                          EMOTION_LEVEL_COLORS[turn.emotion_level] ?? EMOTION_LEVEL_COLORS[0]
-                        }`}
-                      >
-                        {EMOTION_LEVEL_LABELS[turn.emotion_level] ?? 'Neutral'}
-                      </span>
-                    </div>
-
-                    {/* Caller message */}
-                    <div className="flex gap-2.5 items-start">
-                      <span className="text-lg leading-none mt-0.5 flex-shrink-0">🧑</span>
-                      <div className="flex-1 bg-gray-800/70 rounded-lg rounded-tl-none px-3 py-2.5 border border-gray-700">
-                        <div className="flex items-center justify-between mb-1">
-                          <p className="text-xs text-gray-400 font-medium">Caller</p>
-                          {sessionState.sessionId && (
-                            <AudioButton
-                              src={`${BACKEND_URL}/api/audio/${sessionState.sessionId}/${turn.turn_number - 1}/caller`}
-                              label="Play caller audio"
-                            />
-                          )}
-                        </div>
-                        <p className="text-sm text-gray-200 leading-relaxed">{turn.caller_message}</p>
-                      </div>
-                    </div>
-
-                    {/* Agent response */}
-                    <div className="flex gap-2.5 items-start justify-end">
-                      <div className="flex-1 bg-gray-900 rounded-lg rounded-tr-none px-3 py-2.5 border border-gray-800">
-                        <div className="flex items-center justify-between mb-1">
-                          <p className="text-xs text-gray-400 font-medium">Agent</p>
-                          {sessionState.sessionId && (
-                            <AudioButton
-                              src={`${BACKEND_URL}/api/audio/${sessionState.sessionId}/${turn.turn_number - 1}/agent`}
-                              label="Play agent audio"
-                            />
-                          )}
-                        </div>
-                        <p className="text-sm text-gray-300 leading-relaxed">{turn.agent_response}</p>
-                      </div>
-                      <span className="text-lg leading-none mt-0.5 flex-shrink-0">🤖</span>
-                    </div>
+          {/* Evaluation tab */}
+          {centerTab === 'eval' && (
+            <>
+              {/* Emotion Arc */}
+              <div className="flex-1 flex flex-col border-b border-gray-800 min-h-0">
+                <div className="px-5 py-3 border-b border-gray-800 flex items-center justify-between flex-shrink-0">
+                  <h2 className="text-sm font-semibold text-gray-200 flex items-center gap-2">
+                    <span className="text-orange-400">📈</span>
+                    Emotion Arc
+                  </h2>
+                  <div className="flex items-center gap-4 text-xs">
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-3 h-0.5 bg-red-400 inline-block rounded" />
+                      <span className="text-gray-500">Anger</span>
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-3 h-0.5 bg-amber-400 inline-block rounded" />
+                      <span className="text-gray-500">Frustration</span>
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-3 h-0.5 bg-blue-400 inline-block rounded" />
+                      <span className="text-gray-500">Neutral</span>
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-3 h-0.5 bg-emerald-400 inline-block rounded" />
+                      <span className="text-gray-500">Joy</span>
+                    </span>
                   </div>
-                ))
+                </div>
+                <div className="flex-1 p-4 min-h-0">
+                  <EmotionArcChart data={chartData} />
+                </div>
+              </div>
+
+              {/* Live Transcript */}
+              <div className="flex-1 flex flex-col min-h-0">
+                <div className="px-5 py-3 border-b border-gray-800 flex-shrink-0">
+                  <h2 className="text-sm font-semibold text-gray-200 flex items-center gap-2">
+                    <span className="text-blue-400">💬</span>
+                    Live Transcript
+                    {isRunning && (
+                      <span className="ml-2 flex items-center gap-1 text-xs text-orange-400 font-normal">
+                        <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />
+                        Live
+                      </span>
+                    )}
+                  </h2>
+                </div>
+                <div
+                  ref={transcriptRef}
+                  className="flex-1 overflow-y-auto p-4 space-y-4"
+                >
+                  {turns.length === 0 ? (
+                    <div className="h-full flex items-center justify-center">
+                      <p className="text-gray-600 text-sm text-center">
+                        Run an evaluation to see the conversation transcript
+                      </p>
+                    </div>
+                  ) : (
+                    turns.map((turn) => (
+                      <div key={turn.turn_number} className="space-y-2">
+                        {/* Turn badge */}
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-mono text-gray-600 bg-gray-800 px-2 py-0.5 rounded">
+                            Turn {turn.turn_number}
+                          </span>
+                          <span
+                            className={`text-xs px-2 py-0.5 rounded font-medium ${
+                              EMOTION_LEVEL_COLORS[turn.emotion_level] ?? EMOTION_LEVEL_COLORS[0]
+                            }`}
+                          >
+                            {EMOTION_LEVEL_LABELS[turn.emotion_level] ?? 'Neutral'}
+                          </span>
+                        </div>
+
+                        {/* Caller message */}
+                        <div className="flex gap-2.5 items-start">
+                          <span className="text-lg leading-none mt-0.5 flex-shrink-0">🧑</span>
+                          <div className="flex-1 bg-gray-800/70 rounded-lg rounded-tl-none px-3 py-2.5 border border-gray-700">
+                            <div className="flex items-center justify-between mb-1">
+                              <p className="text-xs text-gray-400 font-medium">Caller</p>
+                              {sessionState.sessionId && (
+                                <AudioButton
+                                  src={`${BACKEND_URL}/api/audio/${sessionState.sessionId}/${turn.turn_number - 1}/caller`}
+                                  label="Play caller audio"
+                                />
+                              )}
+                            </div>
+                            <p className="text-sm text-gray-200 leading-relaxed">{turn.caller_message}</p>
+                          </div>
+                        </div>
+
+                        {/* Agent response */}
+                        <div className="flex gap-2.5 items-start justify-end">
+                          <div className="flex-1 bg-gray-900 rounded-lg rounded-tr-none px-3 py-2.5 border border-gray-800">
+                            <div className="flex items-center justify-between mb-1">
+                              <p className="text-xs text-gray-400 font-medium">Agent</p>
+                              {sessionState.sessionId && (
+                                <AudioButton
+                                  src={`${BACKEND_URL}/api/audio/${sessionState.sessionId}/${turn.turn_number - 1}/agent`}
+                                  label="Play agent audio"
+                                />
+                              )}
+                            </div>
+                            <p className="text-sm text-gray-300 leading-relaxed">{turn.agent_response}</p>
+                          </div>
+                          <span className="text-lg leading-none mt-0.5 flex-shrink-0">🤖</span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Live Avatar tab */}
+          {centerTab === 'avatar' && (
+            <div className="flex-1 flex flex-col items-center justify-center p-6 min-h-0">
+              {tavusLoading ? (
+                <div className="flex flex-col items-center gap-3 text-gray-500">
+                  <Spinner />
+                  <p className="text-sm">Starting avatar session…</p>
+                </div>
+              ) : tavusUrl ? (
+                <iframe
+                  src={tavusUrl}
+                  className="w-full h-full rounded-xl border border-gray-700"
+                  allow="camera; microphone; autoplay"
+                  title="Tavus Live Avatar"
+                />
+              ) : (
+                <div className="text-center space-y-4 max-w-md">
+                  <span className="text-6xl block">🎭</span>
+                  <div>
+                    <p className="text-gray-200 font-semibold text-lg">Tavus Live Avatar</p>
+                    <p className="text-gray-500 text-sm mt-1 leading-relaxed">
+                      A Tavus CVI (Conversational Video Interface) avatar reacts to the caller&apos;s
+                      emotion in real time — modulating tone, expression, and pacing based on the
+                      live emotion signal.
+                    </p>
+                  </div>
+                  <div className="bg-gray-900 rounded-lg border border-gray-700 p-4 text-left space-y-2">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">To enable</p>
+                    <code className="text-xs text-orange-400 block">TAVUS_API_KEY=your_key_here</code>
+                    <code className="text-xs text-orange-400 block">TAVUS_REPLICA_ID=r79e1c033f</code>
+                  </div>
+                  <button
+                    onClick={startTavusAvatar}
+                    className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded-lg border border-gray-700 transition-all"
+                  >
+                    Retry connection
+                  </button>
+                </div>
               )}
             </div>
-          </div>
+          )}
         </div>
 
         {/* ── Right Sidebar ─────────────────────────────────────────────── */}
@@ -740,6 +873,33 @@ export default function DashboardPage() {
                 color="bg-emerald-400"
               />
             </div>
+          </section>
+
+          {/* Live Coaching Signal */}
+          <section>
+            <SectionHeader>Live Coaching Signal</SectionHeader>
+            {latestTurn ? (() => {
+              const sig = COACHING_SIGNALS[latestTurn.emotion_level] ?? COACHING_SIGNALS[0]
+              return (
+                <div className={`rounded-lg border p-3 space-y-2 ${sig.borderClass}`}>
+                  <div className="flex items-center justify-between">
+                    <span className={`text-xs font-bold ${sig.tagClass}`}>{sig.label}</span>
+                    <span className="text-xs text-gray-500 font-medium">{sig.action}</span>
+                  </div>
+                  <p className="text-xs text-gray-400 leading-relaxed">{sig.text}</p>
+                  {sig.escalate && (
+                    <div className="flex items-center gap-1.5 pt-1.5 border-t border-red-900/60">
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse flex-shrink-0" />
+                      <span className="text-xs text-red-400 font-semibold">Recommend human escalation</span>
+                    </div>
+                  )}
+                </div>
+              )
+            })() : (
+              <div className="rounded-lg border border-gray-800 bg-gray-800/20 p-3 text-center">
+                <p className="text-xs text-gray-600">Signals appear as turns arrive</p>
+              </div>
+            )}
           </section>
 
           {/* Report Card */}
