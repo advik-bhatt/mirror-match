@@ -398,8 +398,22 @@ export default function DashboardPage() {
   }, [])
 
   const handleLiveEmotionUpdate = useCallback((scores: Record<string, number>, level: number) => {
-    setLiveEmotionScores(scores as EmotionScores)
+    setLiveEmotionScores(scores as unknown as EmotionScores)
     setLiveEmotionLevel(level)
+  }, [])
+
+  const appendTurn = useCallback((turn: Turn) => {
+    setTurns((prev) => [...prev, turn])
+    setChartData((prev) => [
+      ...prev,
+      {
+        turn: turn.turn_number,
+        anger: turn.emotion_scores.anger,
+        frustration: (turn.emotion_scores.sadness + turn.emotion_scores.disgust) / 2,
+        neutral: turn.emotion_scores.neutral,
+        joy: turn.emotion_scores.joy,
+      },
+    ])
   }, [])
 
   const runFallback = useCallback(async (mode: 'failing' | 'passing') => {
@@ -424,27 +438,28 @@ export default function DashboardPage() {
     setCenterTab('eval')
     setSelectedScenario('billing_issue')
 
-    // Try live backend first, fall back to static data
     const backendAlive = await fetch(`${BACKEND_URL}/health`, { signal: AbortSignal.timeout(2000) })
       .then((r) => r.ok).catch(() => false)
 
     setSelectedMode('failing')
     if (backendAlive) {
       await new Promise<void>((resolve) => {
-        const handler = () => resolve()
-        // runEvaluation sets isRunning=false when done — poll for it
         const iv = setInterval(() => {
           if (!isRunning) { clearInterval(iv); resolve() }
         }, 300)
-        void handler()
+        void iv
       })
-      // give runEvaluation a moment to start
       await new Promise((r) => setTimeout(r, 500))
     } else {
       await runFallback('failing')
     }
     setIsDemoRunning(false)
   }, [isDemoRunning, isRunning, runFallback])
+
+  // Fetch usage on mount
+  useEffect(() => {
+    fetchUsage()
+  }, [fetchUsage])
 
   // Auto-trigger demo when ?demo=true in URL
   useEffect(() => {
@@ -453,27 +468,8 @@ export default function DashboardPage() {
     if (params.get('demo') === 'true') {
       const t = setTimeout(() => runDemo(), 800)
       return () => clearTimeout(t)
-    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  // Fetch usage on mount
-  useEffect(() => {
-    fetchUsage()
-  }, [fetchUsage])
-
-  const appendTurn = useCallback((turn: Turn) => {
-    setTurns((prev) => [...prev, turn])
-    setChartData((prev) => [
-      ...prev,
-      {
-        turn: turn.turn_number,
-        anger: turn.emotion_scores.anger,
-        frustration: (turn.emotion_scores.sadness + turn.emotion_scores.disgust) / 2,
-        neutral: turn.emotion_scores.neutral,
-        joy: turn.emotion_scores.joy,
-      },
-    ])
+    }
   }, [])
 
   const runEvaluation = useCallback(async () => {
