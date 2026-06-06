@@ -49,6 +49,13 @@ interface ChartPoint {
   joy: number
 }
 
+interface UsageData {
+  mock_mode: boolean
+  tts_enabled: boolean
+  elevenlabs: { status: string; remaining: number | null; total: number | null; used: number | null }
+  huggingface: { status: string; model: string }
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
@@ -217,6 +224,7 @@ export default function DashboardPage() {
   const [report, setReport] = useState<Report | null>(null)
   const [chartData, setChartData] = useState<ChartPoint[]>([])
   const [isRunning, setIsRunning] = useState(false)
+  const [usage, setUsage] = useState<UsageData | null>(null)
 
   const transcriptRef = useRef<HTMLDivElement>(null)
   const eventSourceRef = useRef<EventSource | null>(null)
@@ -234,6 +242,18 @@ export default function DashboardPage() {
       eventSourceRef.current?.close()
     }
   }, [])
+
+  const fetchUsage = useCallback(async () => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/usage`)
+      if (res.ok) setUsage(await res.json())
+    } catch { /* ignore */ }
+  }, [])
+
+  // Fetch usage on mount
+  useEffect(() => {
+    fetchUsage()
+  }, [fetchUsage])
 
   const appendTurn = useCallback((turn: Turn) => {
     setTurns((prev) => [...prev, turn])
@@ -296,6 +316,7 @@ export default function DashboardPage() {
             eventSourceRef.current = null
             setIsRunning(false)
             setSessionState((prev) => ({ ...prev, status: 'complete' }))
+            fetchUsage()
           }
         } catch {
           // ignore malformed events
@@ -318,7 +339,7 @@ export default function DashboardPage() {
       setIsRunning(false)
       setSessionState({ status: 'error', sessionId: null, error: message })
     }
-  }, [isRunning, selectedScenario, selectedMode, appendTurn])
+  }, [isRunning, selectedScenario, selectedMode, appendTurn, fetchUsage])
 
   // Derived state
   const latestTurn = turns[turns.length - 1]
@@ -470,6 +491,43 @@ export default function DashboardPage() {
               )}
             </div>
           </section>
+
+          {/* API Usage Meter */}
+          <div className="space-y-2">
+            <p className="text-xs uppercase tracking-wider text-gray-500">API Usage</p>
+
+            {/* Mode badge */}
+            <div className="flex items-center gap-2">
+              <span className={`w-2 h-2 rounded-full ${usage?.mock_mode ? 'bg-yellow-400' : usage?.tts_enabled ? 'bg-green-400' : 'bg-gray-500'}`} />
+              <span className="text-xs text-gray-400">
+                {usage?.mock_mode ? 'Mock Mode' : usage?.tts_enabled ? 'Live (TTS on)' : 'Live (TTS off)'}
+              </span>
+            </div>
+
+            {/* ElevenLabs credits */}
+            {usage?.elevenlabs.status === 'ok' && usage.elevenlabs.total && (
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-500">ElevenLabs</span>
+                  <span className={`font-mono ${(usage.elevenlabs.remaining ?? 0) < 2000 ? 'text-red-400' : 'text-gray-300'}`}>
+                    {usage.elevenlabs.remaining?.toLocaleString()} left
+                  </span>
+                </div>
+                <div className="w-full bg-gray-800 rounded-full h-1">
+                  <div
+                    className={`h-1 rounded-full transition-all ${(usage.elevenlabs.remaining ?? 0) < 2000 ? 'bg-red-500' : 'bg-orange-500'}`}
+                    style={{ width: `${((usage.elevenlabs.remaining ?? 0) / (usage.elevenlabs.total ?? 1)) * 100}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* HuggingFace status */}
+            <div className="flex justify-between text-xs">
+              <span className="text-gray-500">HuggingFace</span>
+              <span className="text-gray-400">{usage?.huggingface.status === 'local' ? 'Local model' : 'API'}</span>
+            </div>
+          </div>
 
           {/* Sponsors */}
           <section className="mt-auto pt-4 border-t border-gray-800">

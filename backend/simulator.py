@@ -103,6 +103,27 @@ async def _generate_audio(
         return None
 
 
+import hashlib
+import shutil
+import os as _os
+
+
+def _get_cached_audio(text: str, voice_id: str, stability: float) -> str | None:
+    """Return path to cached audio if it exists."""
+    key = hashlib.md5(f"{text}{voice_id}{stability:.2f}".encode()).hexdigest()
+    path = f"/tmp/mm_tts_cache/{key}.mp3"
+    return path if _os.path.exists(path) else None
+
+
+def _cache_audio(text: str, voice_id: str, stability: float, source_path: str) -> None:
+    """Copy generated audio to cache."""
+    os.makedirs("/tmp/mm_tts_cache", exist_ok=True)
+    key = hashlib.md5(f"{text}{voice_id}{stability:.2f}".encode()).hexdigest()
+    dest = f"/tmp/mm_tts_cache/{key}.mp3"
+    if not os.path.exists(dest) and os.path.exists(source_path):
+        shutil.copy2(source_path, dest)
+
+
 async def run_simulation(
     session_id: str,
     scenario_name: str,
@@ -128,9 +149,11 @@ async def run_simulation(
         await publish_event(session_id, {"type": "error", "message": f"Unknown scenario: {scenario_name}"})
         return
 
-    elevenlabs_api_key: str | None = (
-        os.getenv("ELEVENLABS_API_KEY") if os.getenv("ENABLE_TTS", "false").lower() == "true" else None
+    enable_tts = (
+        os.getenv("ENABLE_TTS", "false").lower() == "true"
+        and os.getenv("MOCK_MODE", "false").lower() != "true"
     )
+    elevenlabs_api_key: str | None = os.getenv("ELEVENLABS_API_KEY") if enable_tts else None
     caller_voice_id, agent_voice_id = _get_voice_ids()
 
     await update_session_status(session_id, "running")
@@ -169,13 +192,20 @@ async def run_simulation(
 
             if elevenlabs_api_key:
                 caller_output = get_audio_path(session_id, turn_index, "caller")
-                caller_audio_path = await _generate_audio(
-                    text=caller_text,
-                    voice_id=caller_voice_id,
-                    output_path=caller_output,
-                    stability=stability,
-                    api_key=elevenlabs_api_key,
-                )
+                cached = _get_cached_audio(caller_text, caller_voice_id, stability)
+                if cached:
+                    shutil.copy2(cached, caller_output)
+                    caller_audio_path = caller_output
+                else:
+                    caller_audio_path = await _generate_audio(
+                        text=caller_text,
+                        voice_id=caller_voice_id,
+                        output_path=caller_output,
+                        stability=stability,
+                        api_key=elevenlabs_api_key,
+                    )
+                    if caller_audio_path:
+                        _cache_audio(caller_text, caller_voice_id, stability, caller_audio_path)
 
                 agent_output = get_audio_path(session_id, turn_index, "agent")
                 agent_audio_path = await _generate_audio(
@@ -242,7 +272,8 @@ async def run_simulation(
             await add_turn(session_id, minimal_turn)
 
         # Pacing delay — gives the frontend time to animate between turns
-        await asyncio.sleep(2.5)
+        turn_delay = 1.0 if os.getenv("MOCK_MODE", "false").lower() == "true" else 2.5
+        await asyncio.sleep(turn_delay)
 
     # ── Grade the completed session ────────────────────────────────────────────
     try:
