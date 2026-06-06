@@ -6,6 +6,33 @@
 
 type Cmd = (string | number)[]
 
+// Returns true if the request is allowed, false if rate-limited.
+// Uses a fixed 60-second window per IP. Degrades to allow-all if Redis is down.
+export async function checkRateLimit(
+  ip: string,
+  route: string,
+  limitPerMinute: number,
+): Promise<boolean> {
+  const url = process.env.UPSTASH_REDIS_REST_URL
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN
+  if (!url || !token) return true // no Redis — allow through
+  const window = Math.floor(Date.now() / 60000)
+  const key = `mm:rl:${route}:${ip}:${window}`
+  try {
+    const res = await fetch(`${url}/pipeline`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify([['INCR', key], ['EXPIRE', key, '60']]),
+    })
+    if (!res.ok) return true
+    const data = await res.json() as { result: unknown }[]
+    const count = data[0]?.result as number
+    return count <= limitPerMinute
+  } catch {
+    return true
+  }
+}
+
 async function pipeline(commands: Cmd[]): Promise<unknown[] | null> {
   const url = process.env.UPSTASH_REDIS_REST_URL
   const token = process.env.UPSTASH_REDIS_REST_TOKEN

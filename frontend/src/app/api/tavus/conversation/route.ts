@@ -1,6 +1,10 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
+import { checkRateLimit } from '@/lib/redis'
 
-export async function POST() {
+export async function POST(req: NextRequest) {
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+  const allowed = await checkRateLimit(ip, 'tavus', 3) // 3 sessions/min per IP
+  if (!allowed) return NextResponse.json({ error: 'Too many sessions, try again in a minute.' }, { status: 429 })
   const apiKey = process.env.TAVUS_API_KEY
   const replicaId = process.env.TAVUS_REPLICA_ID ?? 'r79e1c033f'
 
