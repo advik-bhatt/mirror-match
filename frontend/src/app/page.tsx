@@ -128,38 +128,62 @@ const COACHING_SIGNALS: Record<number, {
   borderClass: string
   action: string
   text: string
+  aiChanges: string[]
   escalate: boolean
 }> = {
   0: {
     label: 'Stable',
     tagClass: 'text-blue-300',
     borderClass: 'border-blue-900 bg-blue-950/20',
-    action: 'Continue normally',
-    text: 'Caller is calm. Proceed with standard resolution flow.',
+    action: 'Proceed normally',
+    text: 'Caller is calm. Standard resolution flow is appropriate.',
+    aiChanges: [
+      'Maintain current response pacing',
+      'Continue with structured resolution script',
+      'No behavior change required',
+    ],
     escalate: false,
   },
   1: {
-    label: 'Attention',
+    label: 'Tension Detected',
     tagClass: 'text-amber-300',
     borderClass: 'border-amber-900 bg-amber-950/20',
-    action: 'Validate & empathize',
-    text: 'Frustration detected. Acknowledge the delay, use empathy phrases, avoid policy-only language.',
+    action: 'Adapt tone immediately',
+    text: 'Frustration building. Agent must shift from transactional to empathetic mode before next response.',
+    aiChanges: [
+      'Slow response cadence by ~20%',
+      'Lead with acknowledgment before any resolution attempt',
+      'Remove policy-only language from next turn',
+      'Use first-person ownership: "I will" not "the team will"',
+    ],
     escalate: false,
   },
   2: {
     label: 'Escalation Risk',
     tagClass: 'text-orange-300',
     borderClass: 'border-orange-900 bg-orange-950/20',
-    action: 'Resolve or hand off',
-    text: 'Caller is angry. Offer a concrete resolution now. Avoid deflecting or transferring without commitment.',
+    action: 'Resolve concretely now',
+    text: 'Caller is angry. Deflection at this stage accelerates churn. Agent must commit to a specific action.',
+    aiChanges: [
+      'Skip acknowledgment phase — go straight to resolution',
+      'State a specific outcome with a timeline or reference number',
+      'Do not transfer without first making a commitment',
+      'Offer compensation proactively — do not wait to be asked',
+    ],
     escalate: false,
   },
   3: {
-    label: 'Critical',
+    label: 'Critical — Human Required',
     tagClass: 'text-red-300',
     borderClass: 'border-red-900 bg-red-950/20',
-    action: 'Human handoff now',
-    text: 'Caller is furious. Escalate to a senior human agent. Offer immediate compensation. Do not follow scripts.',
+    action: 'Route to human agent now',
+    text: 'AI agent has exceeded its emotional competence threshold. Continued AI handling will increase churn risk.',
+    aiChanges: [
+      'Trigger human escalation routing immediately',
+      'Do not attempt further resolution with the AI agent',
+      'Pass full context and emotion timeline to the human agent',
+      'Offer direct compensation before the handoff',
+    ],
     escalate: true,
   },
 }
@@ -209,10 +233,12 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
 
 function EmotionBar({
   label,
+  sublabel,
   value,
   color,
 }: {
   label: string
+  sublabel?: string
   value: number
   color: string
 }) {
@@ -220,7 +246,12 @@ function EmotionBar({
   return (
     <div className="space-y-1">
       <div className="flex justify-between text-xs">
-        <span className="text-gray-400">{label}</span>
+        <span className="text-gray-300">
+          {label}
+          {sublabel && (
+            <span className="text-gray-600 font-normal"> · {sublabel}</span>
+          )}
+        </span>
         <span className="text-gray-300 font-mono">{pct}%</span>
       </div>
       <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
@@ -906,7 +937,7 @@ export default function DashboardPage() {
 
           {/* Caller Emotional State */}
           <section>
-            <SectionHeader>Caller State</SectionHeader>
+            <SectionHeader>Emotion Signal</SectionHeader>
             <div className="text-center py-4">
               <span className="text-5xl block mb-2">{callerFace}</span>
               <p className="text-xs text-gray-500">
@@ -916,15 +947,17 @@ export default function DashboardPage() {
               </p>
             </div>
 
-            {/* Emotion bars — live call or latest sim turn */}
+            {/* Emotion bars — psychological label + KPI interpretation */}
             <div className="space-y-3 mt-2">
               <EmotionBar
                 label="Anger"
+                sublabel="Escalation Risk"
                 value={activeEmotionScores?.anger ?? 0}
                 color="bg-red-400"
               />
               <EmotionBar
                 label="Frustration"
+                sublabel="Tension Index"
                 value={
                   activeEmotionScores
                     ? (activeEmotionScores.sadness + activeEmotionScores.disgust) / 2
@@ -934,11 +967,13 @@ export default function DashboardPage() {
               />
               <EmotionBar
                 label="Neutral"
+                sublabel="Stability"
                 value={activeEmotionScores?.neutral ?? 0}
                 color="bg-blue-400"
               />
               <EmotionBar
                 label="Joy"
+                sublabel="Satisfaction"
                 value={activeEmotionScores?.joy ?? 0}
                 color="bg-emerald-400"
               />
@@ -951,16 +986,25 @@ export default function DashboardPage() {
             {activeEmotionScores ? (() => {
               const sig = COACHING_SIGNALS[activeEmotionLevel] ?? COACHING_SIGNALS[0]
               return (
-                <div className={`rounded-lg border p-3 space-y-2 ${sig.borderClass}`}>
+                <div className={`rounded-lg border p-3 space-y-2.5 ${sig.borderClass}`}>
                   <div className="flex items-center justify-between">
                     <span className={`text-xs font-bold ${sig.tagClass}`}>{sig.label}</span>
                     <span className="text-xs text-gray-500 font-medium">{sig.action}</span>
                   </div>
                   <p className="text-xs text-gray-400 leading-relaxed">{sig.text}</p>
+                  <div className="border-t border-gray-700/60 pt-2 space-y-1">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">AI should</p>
+                    {sig.aiChanges.map((change, i) => (
+                      <div key={i} className="flex items-start gap-1.5">
+                        <span className={`text-xs mt-0.5 flex-shrink-0 ${sig.tagClass}`}>→</span>
+                        <span className="text-xs text-gray-400 leading-relaxed">{change}</span>
+                      </div>
+                    ))}
+                  </div>
                   {sig.escalate && (
-                    <div className="flex items-center gap-1.5 pt-1.5 border-t border-red-900/60">
+                    <div className="flex items-center gap-1.5 pt-1 border-t border-red-900/60">
                       <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse flex-shrink-0" />
-                      <span className="text-xs text-red-400 font-semibold">Recommend human escalation</span>
+                      <span className="text-xs text-red-400 font-semibold">Route to human agent now</span>
                     </div>
                   )}
                 </div>
