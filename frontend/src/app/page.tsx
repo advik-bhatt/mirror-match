@@ -120,8 +120,9 @@ function TavusEmbed({
   const [error, setError] = useState<string | null>(null)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null)
+  const lastClassifyRef = useRef(0)
 
-  const classify = useCallback(async (text: string) => {
+  const classify = useCallback(async (text: string, commit: boolean) => {
     try {
       const res = await fetch(`${API}/api/classify`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -129,11 +130,13 @@ function TavusEmbed({
       })
       const data = await res.json() as { scores: EmotionScores; emotion_level: number }
       onEmotionUpdate(data.scores, data.emotion_level)
-      onTranscript({
-        id: ++entryId, speaker: 'customer', text,
-        emotionLevel: data.emotion_level,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-      })
+      if (commit) {
+        onTranscript({
+          id: ++entryId, speaker: 'customer', text,
+          emotionLevel: data.emotion_level,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        })
+      }
     } catch { /* ignore */ }
   }, [onEmotionUpdate, onTranscript])
 
@@ -143,17 +146,35 @@ function TavusEmbed({
     if (!SR) return
     const r = new SR()
     r.continuous = true
-    r.interimResults = false
+    r.interimResults = true   // stream live — agent voice fills pauses, so finals never fire otherwise
     r.lang = 'en-US'
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     r.onresult = (e: any) => {
-      const result = e.results[e.results.length - 1]
-      if (result.isFinal) {
-        const text = result[0].transcript.trim()
-        if (text.length > 3) void classify(text)
+      let interim = ''
+      let final = ''
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const seg = e.results[i]
+        if (seg.isFinal) final += seg[0].transcript
+        else interim += seg[0].transcript
+      }
+      // Live emotion off interim text — throttled so the orb/bars move as you talk
+      const live = (final || interim).trim()
+      const now = Date.now()
+      if (live.length > 3 && now - lastClassifyRef.current > 1200) {
+        lastClassifyRef.current = now
+        void classify(live, false)
+      }
+      // Commit a transcript entry when a segment finalizes
+      const committed = final.trim()
+      if (committed.length > 3) void classify(committed, true)
+    }
+    r.onerror = () => { /* keep going; onend will restart */ }
+    r.onend = () => {
+      // Chrome auto-stops on silence/timeout — restart unless the call ended
+      if (recognitionRef.current === r) {
+        try { r.start() } catch { /* already starting */ }
       }
     }
-    r.onerror = () => setTimeout(() => r.start(), 1000)
     r.start()
     recognitionRef.current = r
   }, [classify])
