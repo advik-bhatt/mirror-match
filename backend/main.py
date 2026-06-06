@@ -5,6 +5,7 @@ Provides endpoints for creating and streaming simulation sessions,
 serving audio files, and retrieving scenario metadata.
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -18,7 +19,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
-from .redis_store import create_session, get_session, subscribe_events
+from .redis_store import create_session, get_session
 from .scenarios import SCENARIOS
 from .simulator import run_simulation
 
@@ -164,33 +165,36 @@ async def stream_session_events(session_id: str):
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found.")
 
     async def event_generator():
-        # ── 1. Send current session snapshot as the first event ───────────────
+        sent_turns = 0
+
+        # Send initial snapshot
         try:
-            snapshot_session = await get_session(session_id)
-            if snapshot_session:
-                yield {"data": json.dumps({"type": "snapshot", "session": snapshot_session})}
+            snapshot = await get_session(session_id)
+            if snapshot:
+                yield {"data": json.dumps({"type": "snapshot", "session": snapshot})}
         except Exception as exc:  # noqa: BLE001
-            logger.warning("Failed to send session snapshot for %s: %s", session_id, exc)
+            logger.warning("Snapshot failed for %s: %s", session_id, exc)
 
-        # ── 2. If session is already complete, nothing more to stream ─────────
-        if session.get("status") == "complete":
-            yield {
-                "data": json.dumps({
-                    "type": "complete",
-                    "report": session.get("report", {}),
-                })
-            }
-            return
-
-        # ── 3. Subscribe to Redis pub/sub and forward events ──────────────────
-        try:
-            async for event in subscribe_events(session_id):
-                yield {"data": json.dumps(event)}
-                if event.get("type") == "complete":
+        # Poll Redis every 0.5s until session completes (max 90s)
+        for _ in range(180):
+            try:
+                current = await get_session(session_id)
+                if not current:
                     break
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("SSE stream error for session %s: %s", session_id, exc)
-            yield {"data": json.dumps({"type": "error", "message": str(exc)})}
+
+                turns = current.get("turns", [])
+                for turn in turns[sent_turns:]:
+                    yield {"data": json.dumps({"type": "turn", **turn})}
+                    sent_turns += 1
+
+                if current.get("status") == "complete":
+                    yield {"data": json.dumps({"type": "complete", "report": current.get("report")})}
+                    return
+
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Poll error for %s: %s", session_id, exc)
+
+            await asyncio.sleep(0.5)
 
     return EventSourceResponse(event_generator())
 

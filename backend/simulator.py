@@ -28,8 +28,9 @@ logger = logging.getLogger(__name__)
 SimMode = Literal["passing", "failing"]
 
 # Default voice IDs — can be overridden via environment variables.
+# Agent voice defaults to same as caller to avoid paid-library-voice 402 errors.
 _DEFAULT_CALLER_VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"
-_DEFAULT_AGENT_VOICE_ID = "21m00Tcm4TlvDq8ikWAM"
+_DEFAULT_AGENT_VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"
 
 
 def get_audio_path(session_id: str, turn_num: int, speaker: str) -> str:
@@ -188,12 +189,14 @@ async def run_simulation(
                 )
 
             # ── Assemble turn record ───────────────────────────────────────────
+            dominant = max(emotion_scores, key=emotion_scores.get) if emotion_scores else "neutral"
             turn_data = {
-                "turn_num": turn_index,
-                "caller_text": caller_text,
+                "turn_number": turn_index + 1,
+                "caller_message": caller_text,
                 "emotion_level": emotion_level,
                 "agent_response": agent_response,
                 "emotion_scores": emotion_scores,
+                "dominant_emotion": dominant,
                 "caller_audio_path": caller_audio_path,
                 "agent_audio_path": agent_audio_path,
                 "mode": mode,
@@ -222,11 +225,12 @@ async def run_simulation(
             logger.exception("Unhandled error in turn %d of session %s: %s", turn_index, session_id, exc)
             # Record a minimal turn so the session can still be graded
             minimal_turn = {
-                "turn_num": turn_index,
-                "caller_text": turn.get("caller_text", ""),
+                "turn_number": turn_index + 1,
+                "caller_message": turn.get("caller_text", ""),
                 "emotion_level": turn.get("emotion_level", 0),
                 "agent_response": "",
                 "emotion_scores": {},
+                "dominant_emotion": "neutral",
                 "caller_audio_path": None,
                 "agent_audio_path": None,
                 "mode": mode,
