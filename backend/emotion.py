@@ -1,8 +1,10 @@
 """
 Emotion classification for caller utterances.
 
-Primary: HuggingFace Inference API using j-hartmann/emotion-english-distilroberta-base
-Fallback: keyword-based heuristic classifier when API is unavailable.
+Priority order:
+  1. Local transformers pipeline (no API key — just: pip install transformers torch)
+  2. HuggingFace Inference API (needs HUGGINGFACE_API_KEY)
+  3. Keyword-based heuristic fallback (always works, no dependencies)
 """
 
 import os
@@ -13,13 +15,29 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-# The 7 emotion labels produced by this model
 EMOTION_LABELS = ["anger", "disgust", "fear", "joy", "neutral", "sadness", "surprise"]
+MODEL_NAME = "j-hartmann/emotion-english-distilroberta-base"
+HF_API_URL = f"https://api-inference.huggingface.co/models/{MODEL_NAME}"
 
-HF_API_URL = (
-    "https://api-inference.huggingface.co/models/"
-    "j-hartmann/emotion-english-distilroberta-base"
-)
+# Lazy-load local pipeline — downloaded once, cached in ~/.cache/huggingface
+_local_pipeline = None
+
+def _get_local_pipeline():
+    global _local_pipeline
+    if _local_pipeline is not None:
+        return _local_pipeline
+    try:
+        from transformers import pipeline
+        _local_pipeline = pipeline(
+            "text-classification",
+            model=MODEL_NAME,
+            top_k=None,
+            device=-1,  # CPU; change to 0 for GPU
+        )
+        logger.info("Local emotion classifier loaded.")
+        return _local_pipeline
+    except ImportError:
+        return None
 
 
 def _keyword_fallback(text: str) -> dict:
@@ -105,22 +123,23 @@ def _keyword_fallback(text: str) -> dict:
 
 async def classify_emotion(text: str) -> dict:
     """
-    Classify the emotion of the given text.
-
-    Attempts to use the HuggingFace Inference API first. Falls back to a
-    keyword-based heuristic classifier if the API key is missing or the
-    request fails for any reason.
-
-    Returns:
-        dict: Mapping of lowercase emotion label to confidence score (0.0–1.0).
-              Keys: anger, disgust, fear, joy, neutral, sadness, surprise
+    Classify emotion of text. Tries local model → HF API → keyword fallback.
+    Returns dict of {emotion: score} summing to ~1.0.
     """
-    api_key: Optional[str] = os.getenv("HUGGINGFACE_API_KEY")
+    # 1. Local transformers (no API key needed)
+    pipe = _get_local_pipeline()
+    if pipe is not None:
+        try:
+            results = pipe(text)[0]  # list of {label, score}
+            scores = {r["label"].lower(): round(r["score"], 4) for r in results}
+            for label in EMOTION_LABELS:
+                scores.setdefault(label, 0.0)
+            return scores
+        except Exception as exc:
+            logger.warning("Local pipeline failed (%s), trying API.", exc)
 
+    api_key: Optional[str] = os.getenv("HUGGINGFACE_API_KEY")
     if not api_key:
-        logger.warning(
-            "HUGGINGFACE_API_KEY not set — using keyword-based emotion classifier."
-        )
         return _keyword_fallback(text)
 
     try:
