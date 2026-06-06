@@ -4,6 +4,22 @@ import React, { useState, useRef, useCallback, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { createSession, logTurn } from '../lib/supabase'
 
+async function playTTS(text: string, stability = 0.55) {
+  try {
+    const res = await fetch('/api/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, stability }),
+    })
+    if (!res.ok) return
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const audio = new Audio(url)
+    audio.play().catch(() => {})
+    audio.onended = () => URL.revokeObjectURL(url)
+  } catch { /* ignore — EL optional */ }
+}
+
 const EmotionArcChart = dynamic(() => import('../components/EmotionChart'), { ssr: false })
 const EmotionOrb = dynamic(() => import('../components/EmotionOrb'), { ssr: false })
 
@@ -209,10 +225,20 @@ export default function Page() {
   const [sessionId, setSessionId] = useState<string | null>(null)
   const transcriptRef = useRef<HTMLDivElement>(null)
   const turnCount = useRef(0)
+  const prevLevelRef = useRef(0)
 
   useEffect(() => {
     if (transcriptRef.current) transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight
   }, [transcript])
+
+  // ElevenLabs: speak coaching alert when escalation level rises
+  useEffect(() => {
+    if (emotionLevel > prevLevelRef.current && callActive) {
+      const stability = Math.max(0.2, 0.6 - emotionLevel * 0.1)
+      void playTTS(COACHING[emotionLevel].action, stability)
+    }
+    prevLevelRef.current = emotionLevel
+  }, [emotionLevel, callActive])
 
   const handleEmotionUpdate = useCallback((scores: EmotionScores, level: number) => {
     setEmotionScores(scores)
@@ -228,7 +254,20 @@ export default function Page() {
 
   const handleTranscript = useCallback((entry: TranscriptEntry) => {
     setTranscript(prev => [...prev, entry])
-    if (sessionId) void logTurn(sessionId, entry.speaker, entry.text, entry.emotionLevel, {})
+    if (sessionId) {
+      void logTurn(sessionId, entry.speaker, entry.text, entry.emotionLevel, {})
+      void fetch('/api/turns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: sessionId,
+          speaker: entry.speaker,
+          text: entry.text,
+          emotion_level: entry.emotionLevel,
+          anger: 0,
+        }),
+      })
+    }
   }, [sessionId])
 
   const handleCallStart = useCallback(async () => {
